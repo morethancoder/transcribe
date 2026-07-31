@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en" data-theme="light" data-accent="cobalt" data-radius="round" data-density="comfortable">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+		<script>
+			// Restore the persisted theme before first paint (same key x-theme uses).
+			try {
+				var t = localStorage.getItem('mtui-theme');
+				if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
+			} catch (e) {}
+		</script>
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="hover" class="shell">
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>

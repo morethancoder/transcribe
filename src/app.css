@@ -1,0 +1,76 @@
+/* ----------------------------------------------------------------------------
+   MTUI overrides — the bottom tab bar.
+
+   Two departures from stock MTUI, both in .shell-nav. This is the only place
+   the app writes layout CSS, which MTUI's own guide forbids ("App code never
+   writes layout CSS or media queries"); see
+   fixes/MTUI-SHELL-NAV-FIX-PROMPT.md.
+
+   Selectors are one specificity step above MTUI's (body.shell vs .shell) so
+   the overrides don't depend on stylesheet order. `body.shell > .shell-nav`
+   would not match: SvelteKit renders the app inside a display:contents
+   wrapper, so the nav is a grid item of body but not its element child.
+
+   1. Placement. MTUI hardcodes the tab bar below 768px and a 5rem side rail
+      at or above it (layout.css:91), with no knob to choose — nav placement
+      is the one appearance decision it doesn't expose as a data-* attribute
+      on <html>. With two destinations we want the tab bar at every width, so
+      the media query below undoes that one.
+
+   2. Tap targets. Stock items are only as wide as their label (~64px) sitting
+      in a space-evenly row, so most of the bar is dead space with no hint of
+      where the pressable area ends. Below, each item flexes to fill its half
+      of the bar (capped so desktop doesn't get absurd) and carries a tonal
+      background, making the target both bigger and visible. The resting and
+      hover colors are MTUI's own well tones, and the current-tab treatment
+      mirrors .chip[aria-pressed="true"] (components.css:422) so it reads as
+      part of the design system rather than something invented here.
+
+      MTUI already transitions background-color on .shell-nav > *
+      (layout.css:81-84) but never sets one, so the animation comes free.
+   -------------------------------------------------------------------------- */
+
+/* 1. tab bar at every width */
+@media (min-width: 768px) {
+	body.shell {
+		grid-template-areas:
+			'header'
+			'content'
+			'nav';
+		grid-template-rows: auto 1fr auto;
+		grid-template-columns: 1fr;
+	}
+
+	body.shell .shell-nav {
+		flex-direction: row;
+		inline-size: auto;
+	}
+}
+
+/* 2. wider, visibly pressable tabs */
+body.shell .shell-nav {
+	justify-content: center;
+	gap: var(--sp-8);
+	padding-inline: var(--pad);
+	padding-block: var(--sp-8);
+	padding-block-end: calc(var(--sp-8) + env(safe-area-inset-bottom, 0px));
+}
+
+body.shell .shell-nav > * {
+	/* Fill the bar, but stop so the two tabs plus their gap span exactly the
+	   40rem content column above — capping each at a flat 20rem overhangs the
+	   cards by the width of the gap (4px a side). */
+	flex: 1 1 0;
+	max-inline-size: calc((40rem - var(--sp-8)) / 2);
+	padding-block: var(--sp-8);
+	background: var(--surface-2);
+}
+
+body.shell .shell-nav > *:hover {
+	background: var(--surface-3);
+}
+
+body.shell .shell-nav > [aria-current]:not([aria-current='false']) {
+	background: var(--accent-tint);
+	color: var(--accent-text);
+}

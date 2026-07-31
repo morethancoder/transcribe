@@ -1,0 +1,53 @@
+<script lang="ts">
+	let {
+		value = 0,
+		label = '',
+		detail = ''
+	}: { value?: number; label?: string; detail?: string } = $props();
+
+	let percent = $derived(Math.round(Math.min(1, Math.max(0, value)) * 100));
+</script>
+
+<div class="stack" data-gap="8">
+	<div class="row" data-align="between" data-gap="12">
+		<span class="t-row">{label}</span>
+		<span class="t-label t-ltr">{percent}%</span>
+	</div>
+	<div
+		class="progress"
+		role="progressbar"
+		aria-label={label}
+		aria-valuemin={0}
+		aria-valuemax={100}
+		aria-valuenow={percent}
+	>
+		<span class="progress-fill" style:inline-size="{percent}%"></span>
+	</div>
+	{#if detail}
+		<span class="t-secondary" aria-live="polite">{detail}</span>
+	{/if}
+</div>
+
+<style>
+	/* MTUI ships no progress bar; built from its tokens so it themes with the rest. */
+	.progress {
+		block-size: var(--sp-8);
+		background: var(--surface-2);
+		border-radius: var(--r-chip);
+		overflow: hidden;
+	}
+
+	.progress-fill {
+		display: block;
+		block-size: 100%;
+		background: var(--accent);
+		border-radius: inherit;
+		transition: inline-size var(--t-micro) var(--ease);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.progress-fill {
+			transition: none;
+		}
+	}
+</style>

@@ -1,0 +1,32 @@
+node_modules
+
+# Build output
+.output
+.vercel
+.netlify
+.wrangler
+/.svelte-kit
+/build
+/dist
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+!.env.example
+!.env.test
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Whisper models — hundreds of MB, downloaded on demand
+models/
+
+# Local scratch: browser artifacts and sample media
+.playwright/
+.playwright-mcp/
+testdata/
