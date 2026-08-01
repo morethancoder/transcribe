@@ -1,13 +1,24 @@
-import { createWriteStream, existsSync, statSync } from 'node:fs';
+import { createWriteStream, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { once } from 'node:events';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import {
+	DEFAULT_MODEL,
+	MODELS,
+	getModel,
+	isModelId,
+	translateModelFor,
+	type ModelId
+} from '$lib/models';
 
 /**
- * Two models, because `large-v3-turbo` is transcription-only — it silently
- * ignores whisper's `-tr` flag and returns the source language. Transcription
- * uses turbo (fast); "Translate to English" needs a full multilingual model,
- * downloaded the first time someone asks for a translation.
+ * Two *roles*, not two fixed models. Transcription runs whichever model the
+ * user picked; "Translate to English" runs that same model when it can
+ * translate, and falls back to a multilingual one when it can't — which today
+ * means only when they picked `large-v3-turbo`, since turbo silently ignores
+ * whisper's `-tr` flag and returns the source language.
+ *
+ * The catalogue itself lives in `$lib/models`, shared with the picker in the UI.
  */
 export type ModelKind = 'transcribe' | 'translate';
 
@@ -15,16 +26,56 @@ export const MODEL_KINDS: ModelKind[] = ['transcribe', 'translate'];
 
 const HF = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main';
 
-const MODELS: Record<ModelKind, { path: string; url: string }> = {
-	transcribe: {
-		path: process.env.WHISPER_MODEL ?? path.resolve('models/ggml-large-v3-turbo-q5_0.bin'),
-		url: process.env.WHISPER_MODEL_URL ?? `${HF}/ggml-large-v3-turbo-q5_0.bin`
-	},
-	translate: {
-		path: process.env.WHISPER_TRANSLATE_MODEL ?? path.resolve('models/ggml-medium-q5_0.bin'),
-		url: process.env.WHISPER_TRANSLATE_MODEL_URL ?? `${HF}/ggml-medium-q5_0.bin`
+const MODEL_DIR = process.env.WHISPER_MODEL_DIR ?? path.resolve('models');
+/** Remembers the choice across restarts. A plain file so it can be deleted. */
+const SELECTION_FILE = path.join(MODEL_DIR, 'selected.json');
+
+let selected: ModelId = loadSelection();
+
+function loadSelection(): ModelId {
+	// An explicit env var still wins, so an existing deployment that pinned a
+	// model file keeps the model it pinned.
+	const pinned = process.env.WHISPER_MODEL_ID;
+	if (isModelId(pinned)) return pinned;
+	try {
+		const raw: unknown = JSON.parse(readFileSync(SELECTION_FILE, 'utf-8'));
+		const id = (raw as { model?: unknown })?.model;
+		if (isModelId(id)) return id;
+	} catch {
+		// no choice made yet, or the file is unreadable — the default is fine
 	}
-};
+	return DEFAULT_MODEL;
+}
+
+/** Which model is currently doing the transcribing. */
+export function selectedModel(): ModelId {
+	return selected;
+}
+
+/** Change it. Downloads are lazy, so this is only a note of intent. */
+export function selectModel(id: ModelId): void {
+	selected = id;
+	try {
+		writeFileSync(SELECTION_FILE, JSON.stringify({ model: id }, null, '\t'));
+	} catch {
+		// read-only install — the choice just won't survive a restart
+	}
+}
+
+/** The model id backing a role, given the current selection. */
+export function modelIdFor(kind: ModelKind): ModelId {
+	return kind === 'transcribe' ? selected : translateModelFor(selected);
+}
+
+/** Which models are already on disk — switching to one of these is instant. */
+export function downloadedModels(): ModelId[] {
+	return MODELS.filter((m) => existsSync(path.join(MODEL_DIR, m.file))).map((m) => m.id);
+}
+
+function fileFor(kind: ModelKind): { path: string; url: string } {
+	const model = getModel(modelIdFor(kind));
+	return { path: path.join(MODEL_DIR, model.file), url: `${HF}/${model.file}` };
+}
 
 export type ModelState = {
 	status: 'missing' | 'downloading' | 'ready' | 'error';
@@ -33,43 +84,51 @@ export type ModelState = {
 	message?: string;
 };
 
-const states: Record<ModelKind, ModelState> = {
-	transcribe: { status: 'missing', received: 0, total: 0 },
-	translate: { status: 'missing', received: 0, total: 0 }
-};
-const downloading = new Set<ModelKind>();
+/**
+ * Keyed by model, not by role. Two roles can resolve to the same file, and
+ * switching models while one is downloading shouldn't strand that progress
+ * under a role that has stopped pointing at it.
+ */
+const states = new Map<ModelId, ModelState>();
+const downloading = new Set<ModelId>();
+
+function stateOf(id: ModelId): ModelState {
+	return states.get(id) ?? { status: 'missing', received: 0, total: 0 };
+}
 
 export function modelPath(kind: ModelKind): string {
-	return MODELS[kind].path;
+	return fileFor(kind).path;
 }
 
 export function modelReady(kind: ModelKind): boolean {
-	return existsSync(MODELS[kind].path);
+	return existsSync(fileFor(kind).path);
 }
 
 export function modelState(kind: ModelKind): ModelState {
-	if (modelReady(kind)) {
-		const size = statSync(MODELS[kind].path).size;
+	const { path: file } = fileFor(kind);
+	if (existsSync(file)) {
+		const size = statSync(file).size;
 		return { status: 'ready', received: size, total: size };
 	}
-	return states[kind];
+	return stateOf(modelIdFor(kind));
 }
 
 /** Kick off a model download if it isn't on disk yet. Safe to call repeatedly. */
 export function ensureModel(kind: ModelKind): void {
-	if (downloading.has(kind) || modelReady(kind)) return;
-	downloading.add(kind);
-	states[kind] = { status: 'downloading', received: 0, total: 0 };
-	download(kind)
+	const id = modelIdFor(kind);
+	if (downloading.has(id) || modelReady(kind)) return;
+	downloading.add(id);
+	states.set(id, { status: 'downloading', received: 0, total: 0 });
+	download(kind, id)
 		.catch((e) => {
-			states[kind] = {
+			states.set(id, {
 				status: 'error',
 				received: 0,
-				total: states[kind].total,
+				total: stateOf(id).total,
 				message: e instanceof Error ? e.message : String(e)
-			};
+			});
 		})
-		.finally(() => downloading.delete(kind));
+		.finally(() => downloading.delete(id));
 }
 
 /** Start the download if needed and resolve once the file is on disk. */
@@ -88,8 +147,8 @@ export async function awaitModel(
 	}
 }
 
-async function download(kind: ModelKind): Promise<void> {
-	const { path: dest, url } = MODELS[kind];
+async function download(kind: ModelKind, id: ModelId): Promise<void> {
+	const { path: dest, url } = fileFor(kind);
 	const partial = `${dest}.download`;
 	await fs.mkdir(path.dirname(dest), { recursive: true });
 
@@ -104,13 +163,14 @@ async function download(kind: ModelKind): Promise<void> {
 	if (res.status !== 206) offset = 0;
 
 	const total = offset + Number(res.headers.get('content-length') ?? 0);
-	states[kind] = { status: 'downloading', received: offset, total };
+	const progress: ModelState = { status: 'downloading', received: offset, total };
+	states.set(id, progress);
 
 	const out = createWriteStream(partial, { flags: res.status === 206 ? 'a' : 'w' });
 	try {
 		for await (const chunk of res.body) {
 			if (!out.write(chunk)) await once(out, 'drain');
-			states[kind].received += chunk.length;
+			progress.received += chunk.length;
 		}
 		await new Promise<void>((resolve, reject) => {
 			out.end(() => resolve());
@@ -122,5 +182,5 @@ async function download(kind: ModelKind): Promise<void> {
 	}
 
 	await fs.rename(partial, dest);
-	states[kind] = { status: 'ready', received: states[kind].received, total };
+	states.set(id, { status: 'ready', received: progress.received, total });
 }
