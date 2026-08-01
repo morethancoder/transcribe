@@ -7,7 +7,22 @@ node_modules
 .wrangler
 /.svelte-kit
 /build
+/build-app
 /dist
+
+# Tauri — compiled Rust, and the Android/iOS projects, which are generated
+# from tauri.conf.json by `tauri android init` / `tauri ios init`
+/src-tauri/target
+/src-tauri/gen
+
+# Android release signing — the keystore and its password never enter git.
+# CI receives them as secrets; locally scripts/android-sign.sh recreates the
+# wiring. Losing the keystore means users can't update over old installs.
+/src-tauri/keystore/
+
+# Local backup of the signing material + ready-to-paste GitHub secret values.
+# Never committed; copy it somewhere safer than this machine too.
+/.secrets/
 
 # OS
 .DS_Store

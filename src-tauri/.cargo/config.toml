@@ -1,0 +1,26 @@
+# Knobs for building whisper.cpp through whisper-rs's CMake, delivered as
+# environment variables because cmake-rs reads them: CMAKE_TOOLCHAIN_FILE_<t>
+# selects a toolchain file per *target*, and any other CMAKE_* variable is
+# forwarded to the configure step as a -D define.
+#
+# `relative = true` resolves against this file's parent, so paths hold wherever
+# the repo is checked out — including CI.
+#
+# 1. The toolchain file, scoped to macOS *host* targets on purpose: without it,
+#    whisper.cpp's ARM feature detection compiles and *runs* probe binaries on
+#    the build machine, and the i8mm probe hangs forever instead of failing
+#    (see cmake/ggml-no-native-probes.cmake). Scoped, not generic, because a
+#    generic CMAKE_TOOLCHAIN_FILE would hijack the Android/iOS cross-builds,
+#    which need cmake-rs's own CMAKE_SYSTEM_NAME setup — and don't need the fix
+#    anyway, since CMAKE_CROSSCOMPILING already defaults GGML_NATIVE to off.
+#
+# 2. CMAKE_PROJECT_INCLUDE injects cmake/inject.cmake into every configure —
+#    an Android-guarded stub target papering over a whisper-rs-sys host/target
+#    cfg! bug. The comment in that file has the full story. Delivered this way
+#    rather than as target rustflags because the Tauri CLI exports
+#    CARGO_TARGET_<T>_RUSTFLAGS for Android builds, which overrides every
+#    rustflags entry a config file could make.
+[env]
+CMAKE_TOOLCHAIN_FILE_aarch64-apple-darwin = { value = "cmake/ggml-no-native-probes.cmake", relative = true }
+CMAKE_TOOLCHAIN_FILE_x86_64-apple-darwin = { value = "cmake/ggml-no-native-probes.cmake", relative = true }
+CMAKE_PROJECT_INCLUDE = { value = "cmake/inject.cmake", relative = true }

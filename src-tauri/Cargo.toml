@@ -1,0 +1,45 @@
+[package]
+name = "transcrape"
+version = "0.1.0"
+description = "On-device video and audio transcription, powered by whisper.cpp"
+authors = ["morethancoder"]
+license = "MIT"
+repository = "https://github.com/morethancoder/transcrape"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+# Android and iOS don't run an executable — the platform loads the app as a
+# native library from its own entry point — so the whole app lives in the lib
+# and src/main.rs is a thin shim used only by the desktop targets.
+name = "transcrape_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# No `protocol-asset`: the decoded audio reaches the player as bytes from the
+# `job_audio` command, which keeps the cache directory out of the webview's
+# reach entirely rather than exposing a path scope to it.
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+whisper-rs = "0.16"
+thiserror = "2"
+uuid = { version = "1", features = ["v4"] }
+symphonia = { version = "0.5", features = ["aac", "alac", "isomp4", "mp3"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "fs", "io-util"] }
+futures-util = "0.3"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+
+[profile.release]
+# whisper.cpp inference is the whole product, so favour speed over build time,
+# and strip symbols — the mobile bundles carry a large model alongside them.
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true

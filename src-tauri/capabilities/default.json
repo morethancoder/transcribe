@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "What the transcrape window is allowed to do. Transcription, decoding and model downloads all run in Rust behind this app's own commands, which are authorised by being registered rather than by a permission. The one plugin is the file dialog: a plain <input type=\"file\"> hands the webview a File with no path, which would mean pushing a whole video through IPC to reach Rust, whereas the dialog returns a path the engine can open directly.",
+  "windows": ["main"],
+  "permissions": ["core:default", "dialog:allow-open"]
+}
