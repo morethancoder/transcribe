@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-08-01
+
 ### Added
 
 - **Native apps via Tauri v2** for macOS, Windows, Linux and Android, sharing
@@ -64,5 +66,6 @@ First public release.
   `linux-x64`, `linux-arm64` and `win-x64`, plus `SHA256SUMS`.
 - `make doctor` / `make setup` for first-run tool checks and install.
 
-[Unreleased]: https://github.com/morethancoder/transcrape/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/morethancoder/transcrape/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/morethancoder/transcrape/releases/tag/v0.2.0
 [0.1.0]: https://github.com/morethancoder/transcrape/releases/tag/v0.1.0
