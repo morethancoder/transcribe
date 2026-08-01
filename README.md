@@ -5,6 +5,11 @@ everything runs on-device with [whisper.cpp](https://github.com/ggml-org/whisper
 nothing is uploaded anywhere.
 
 Built with SvelteKit (Svelte 5) and [MoreThanUI](https://www.npmjs.com/package/morethanui).
+Ships two ways: a local web server (this page), and native apps via
+[Tauri v2](https://v2.tauri.app) for desktop and Android — grab those from the
+[releases page](https://github.com/morethancoder/transcrape/releases). iOS can't
+be installed from a download (Apple doesn't allow it); it builds from source
+with a free Apple ID — see [docs/MOBILE.md](docs/MOBILE.md).
 
 ![ci](https://github.com/morethancoder/transcrape/actions/workflows/ci.yml/badge.svg)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -105,18 +110,32 @@ environment or from a `.env` next to the launcher.
 
 ## Models
 
-Two, downloaded into `models/` on demand — the UI shows progress for both, and
-interrupted downloads resume:
+Pick one in **Settings → Transcription**. Bigger models hear better and take
+longer; every one is available on every device, so a phone can run the largest
+if you want it to. Downloads go into `models/` on demand, show progress, and
+resume if interrupted.
 
-| Used for | Model | Size | Fetched |
+| Model | Size | Translates | Good for |
 | --- | --- | --- | --- |
-| Transcription | `large-v3-turbo` q5_0 | ~547 MB | at first start |
-| Translation | `medium` q5_0 | ~515 MB | the first time you translate |
+| `tiny` | 31 MB | yes | an old phone, or a rough first pass |
+| `base` | 60 MB | yes | clear speech in a quiet room |
+| `small` | 190 MB | yes | **suggested on phones** — the usable/fast balance |
+| `medium` | 539 MB | yes | hard audio, on a laptop |
+| `large-v3-turbo` | 574 MB | **no** | **suggested on desktop** — the default |
+| `large-v3` | 1.03 GB | yes | the most accurate, ~2× turbo's time |
 
-The turbo model is transcription-only: it silently ignores whisper's `-tr` flag
-and returns the source language, so translation needs the full multilingual
-model. That's why "Translate to English" is a separate step on a finished
-transcript rather than an option up front.
+Sizes are the real download; all are `q5` quantised, roughly a third of the
+float original for no audible difference in a transcript.
+
+The turbo default is transcription-only: it silently ignores whisper's `-tr`
+flag and returns the source language. So "Translate to English" is a separate
+step on a finished transcript, and with turbo selected it downloads `medium`
+alongside. **Choosing any other model makes translation free** — it reuses the
+model already on disk.
+
+Switching models leaves the old one in place, so switching back is instant. The
+choice is remembered in `models/selected.json`; `WHISPER_MODEL_ID` pins it for a
+headless install.
 
 ## How it works
 
@@ -148,10 +167,8 @@ need.
 | --- | --- | --- |
 | `WHISPER_CLI` | discovered | path to the whisper.cpp CLI |
 | `FFMPEG`, `FFPROBE` | discovered | paths to the ffmpeg binaries |
-| `WHISPER_MODEL` | `models/ggml-large-v3-turbo-q5_0.bin` | transcription model |
-| `WHISPER_MODEL_URL` | Hugging Face | where to fetch it from |
-| `WHISPER_TRANSLATE_MODEL` | `models/ggml-medium-q5_0.bin` | translation model |
-| `WHISPER_TRANSLATE_MODEL_URL` | Hugging Face | where to fetch it from |
+| `WHISPER_MODEL_ID` | chosen in the UI | pin the model — see [Models](#models) |
+| `WHISPER_MODEL_DIR` | `models` | where the `.bin` files are kept |
 | `JOB_TTL_MS` | `21600000` (6 h) | how long decoded audio stays on disk |
 | `MAX_JOBS` | `20` | how many decoded jobs are kept |
 | `HOST`, `PORT` | `127.0.0.1`, `5173` | production server only |

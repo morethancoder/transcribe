@@ -1,0 +1,160 @@
+name: release
+
+# Tag a version (v0.2.0) and this publishes a draft GitHub Release holding:
+#   - the portable server archives for five platforms (same as `make build`)
+#   - Tauri desktop bundles: macOS .dmg, Linux .AppImage/.deb, Windows installer
+#   - a signed Android APK — the one mobile artifact a release can carry, since
+#     Apple doesn't allow installing iOS apps from a website (docs/MOBILE.md)
+#
+# Drafted, not published: someone reads the checksums and presses the button.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  server-archives:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The server is portable JS — one linux runner packages every platform.
+      - run: make build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: server-archives
+          path: dist/
+
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14 # Apple Silicon
+            args: ''
+          - os: ubuntu-22.04
+            args: ''
+          - os: windows-latest
+            args: ''
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install webkit (linux)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
+            librsvg2-dev patchelf
+
+      - run: pnpm install --frozen-lockfile
+
+      # tauri-action runs `pnpm build` (which self-detects the Tauri env and
+      # switches to adapter-static), builds src-tauri in release, bundles, and
+      # uploads to the draft release for this tag.
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Transcrape ${{ github.ref_name }}'
+          releaseDraft: true
+          args: ${{ matrix.args }}
+
+  android:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - name: Install NDK
+        run: sdkmanager "ndk;28.2.13676358" "platforms;android-35" "build-tools;35.0.0"
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Generate the Android project
+        run: |
+          pnpm tauri android init
+          # regenerate icons now that gen/android exists, so the launcher icon
+          # is ours rather than the template's
+          pnpm tauri icon src-tauri/icon.svg
+        env:
+          NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/28.2.13676358
+
+      # The keystore never enters git — see scripts/android-sign.sh. CI holds
+      # it as two secrets: the .jks base64-encoded, and its properties file.
+      #   ANDROID_KEYSTORE_B64        base64 of transcrape-release.jks
+      #   ANDROID_KEYSTORE_PROPERTIES the keystore.properties contents
+      - name: Restore signing keystore
+        run: |
+          mkdir -p src-tauri/keystore
+          echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > src-tauri/keystore/transcrape-release.jks
+          printf '%s' "${{ secrets.ANDROID_KEYSTORE_PROPERTIES }}" > src-tauri/keystore/keystore.properties
+          bash scripts/android-sign.sh
+
+      # CMAKE_ANDROID_NDK: whisper.cpp builds through CMake, whose Android
+      # platform module locates the sysroot through that variable — NDK_HOME
+      # means nothing to it, and without it every C header is "not found".
+      - name: Build signed APK
+        run: pnpm tauri android build --apk --target aarch64
+        env:
+          NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/28.2.13676358
+          CMAKE_ANDROID_NDK: ${{ env.ANDROID_SDK_ROOT }}/ndk/28.2.13676358
+
+      - name: Rename APK
+        run: |
+          mkdir -p out
+          cp src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk \
+             "out/transcrape-${GITHUB_REF_NAME#v}.apk" 2>/dev/null || \
+          cp $(find src-tauri/gen/android/app/build/outputs/apk -name '*release*.apk' | head -1) \
+             "out/transcrape-${GITHUB_REF_NAME#v}.apk"
+
+      - name: Attach APK to the draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$GITHUB_REF_NAME" out/*.apk --clobber
+
+  # The server archives ride along on the same draft release, with checksums.
+  attach-server-archives:
+    needs: [server-archives, desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: server-archives
+          path: dist
+      - name: Attach to the draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$GITHUB_REF_NAME" dist/* --clobber --repo "$GITHUB_REPOSITORY"

@@ -1,9 +1,26 @@
 # Architecture
 
 Transcrape is a SvelteKit app that runs on the same machine as the person using
-it. The server exists only to drive two command-line programs — `ffmpeg` and
-`whisper-cli` — and to stream their progress back to the browser. There is no
-database, no account, and no outbound traffic other than the model downloads.
+it, shipped as two products off one codebase:
+
+- The **server build** (`pnpm build`, adapter-node): a local web server that
+  drives two command-line programs — `ffmpeg` and `whisper-cli` — and streams
+  their progress back to the browser.
+- The **app build** (Tauri v2, adapter-static): the same frontend in a native
+  webview, with the engine reimplemented in Rust (`src-tauri/src/engine/`)
+  because phones can't shell out to external binaries — symphonia decodes in
+  place of ffmpeg, whisper.cpp is linked in via whisper-rs in place of
+  `whisper-cli`. `src/lib/transport.ts` is the one module that knows which
+  backend is present; everything above it is shared. `src-tauri/src/commands.rs`
+  mirrors `src/routes/api/*` command for route, and pushes the same progress
+  events over a Tauri `Channel` that the server streams as NDJSON.
+
+`vite.config.ts` picks the adapter: Tauri builds are detected by the
+`TAURI_ENV_*` variables its CLI injects. See `docs/MOBILE.md` for the Android
+and iOS specifics.
+
+In both shapes there is no database, no account, and no outbound traffic other
+than the model downloads.
 
 ## Layout
 
