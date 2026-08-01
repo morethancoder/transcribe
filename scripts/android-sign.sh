@@ -49,6 +49,11 @@ fi
 # per machine and never committed, so an absolute path costs nothing.
 {
   cat "$PROPS"
+  # Guarantee a newline before appending: GitHub Actions strips the trailing
+  # newline off secrets, and a $PROPS restored from one would otherwise glue
+  # storeFile onto the password line — leaving no storeFile key at all, which
+  # gradle reports as "null cannot be cast to non-null type kotlin.String".
+  [ -z "$(tail -c 1 "$PROPS")" ] || printf '\n'
   printf 'storeFile=%s\n' "$(cd "$KEYSTORE_DIR" && pwd)/transcrape-release.jks"
 } > "$GEN/keystore.properties"
 ok "wrote $GEN/keystore.properties"

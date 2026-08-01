@@ -27,6 +27,9 @@
     "active": true,
     "targets": "all",
     "category": "Productivity",
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
     "shortDescription": "On-device transcription",
     "longDescription": "Pick a video or audio file and get a transcript in any language. Everything runs on the device with whisper.cpp — nothing is uploaded.",
     "icon": [
