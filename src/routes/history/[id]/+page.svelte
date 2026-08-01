@@ -4,6 +4,7 @@
 	import { page } from '$app/state';
 	import Transcript from '$lib/components/Transcript.svelte';
 	import { getEntry, removeEntry, type HistoryEntry } from '$lib/history';
+	import * as transport from '$lib/transport';
 	import { fmtClock, fmtDate, fmtSize } from '$lib/format';
 
 	// history lives in localStorage, so there's nothing to show until we're
@@ -14,22 +15,19 @@
 	/** Server-side audio for this job, when it hasn't expired yet. */
 	let mediaSrc = $state<string | null>(null);
 
-	onMount(async () => {
+	onMount(() => {
 		const found = getEntry(page.params.id ?? '') ?? null;
 		entry = found;
 		ready = true;
 		if (!found?.jobId) return;
 
-		// The source file is long gone from the browser and the server only kept
-		// the decoded audio, so playback here is audio even for a video. Ask
-		// before rendering a player: the job expires after a few hours.
-		const url = `/api/audio?job=${encodeURIComponent(found.jobId)}`;
-		try {
-			const res = await fetch(url, { method: 'HEAD' });
-			if (res.ok) mediaSrc = url;
-		} catch {
-			mediaSrc = null;
-		}
+		// The source file is long gone from the browser and only the decoded
+		// audio was kept, so playback here is audio even for a video. Ask before
+		// rendering a player: the job expires after a few hours.
+		transport.jobAudio(found.jobId).then((url) => (mediaSrc = url));
+
+		// In the app build that URL is a blob, which leaks until it's released.
+		return () => transport.revokeAudio(mediaSrc);
 	});
 
 	async function onClose() {
@@ -62,7 +60,7 @@
 				<img class="thumb" src={entry.thumbnail} alt="" />
 			{/if}
 			<div class="stack" data-gap="4">
-				<h1 class="t-page t-ltr">{entry.name}</h1>
+				<h1 class="t-page t-ltr name">{entry.name}</h1>
 				<p class="t-secondary">
 					{fmtDate(entry.createdAt)} · {fmtSize(entry.size)}{entry.durationMs
 						? ` · ${fmtClock(entry.durationMs)}`
@@ -98,6 +96,26 @@
 </dialog>
 
 <style>
+	/* A filename is a long unbroken identifier, not a headline. At t-page's 38px
+	   a real one wrapped to four lines and ate a third of a phone screen, so step
+	   down to the section size, and allow mid-token breaks for names that carry
+	   no spaces or hyphens to break at.
+
+	   Two conditions, because a phone constrains a different axis depending on
+	   how it is held: narrow in portrait, but short in landscape — 844x390, wide
+	   enough to clear any width query while leaving almost no room to read. */
+	.name {
+		overflow-wrap: anywhere;
+	}
+
+	@media (max-width: 599.98px), (max-height: 480px) {
+		.name {
+			font-size: var(--fs-section);
+			line-height: var(--lh-section);
+			letter-spacing: var(--ls-section);
+		}
+	}
+
 	.thumb {
 		flex: 0 0 auto;
 		inline-size: var(--sp-48);

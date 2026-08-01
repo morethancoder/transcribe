@@ -1,6 +1,6 @@
-import { readNdjson } from './ndjson';
 import { fmtEta } from './format';
-import type { Phase, ProgressEvent, Segment } from './types';
+import type { Run } from './transport';
+import type { Phase, Segment } from './types';
 
 const PHASE_LABEL: Record<Phase, string> = {
 	preparing: 'Preparing audio',
@@ -31,7 +31,8 @@ export class JobRun {
 	 *  boundary would swing the estimate right when it's most visible. */
 	#anchor = $state({ at: 0, progress: 0 });
 	#speed = 10;
-	#controller: AbortController | null = null;
+	#active: Run | null = null;
+	#cancelled = false;
 	#timer: ReturnType<typeof setInterval> | undefined;
 
 	running = $derived(this.phase !== null);
@@ -51,12 +52,19 @@ export class JobRun {
 
 	detail = $derived(this.remainingMs === null ? 'Estimating time…' : fmtEta(this.remainingMs));
 
+	/**
+	 * Drive one run to completion.
+	 *
+	 * Takes a `Run` rather than a URL because the two backends reach the engine
+	 * differently — a streaming POST on the server, an IPC channel in the app.
+	 * `$lib/transport` builds either one; this only consumes the events.
+	 */
 	async run(
-		url: string,
-		init: RequestInit,
+		active: Run,
 		opts: { durationMs?: number; speed?: number } = {}
 	): Promise<JobResult | null> {
-		this.#controller = new AbortController();
+		this.#active = active;
+		this.#cancelled = false;
 		this.error = '';
 		this.jobId = '';
 		this.phase = 'preparing';
@@ -70,14 +78,8 @@ export class JobRun {
 		this.#timer = setInterval(() => (this.elapsedMs = Date.now() - started), 250);
 
 		try {
-			const res = await fetch(url, { ...init, signal: this.#controller.signal });
-			if (!res.ok) {
-				const body = await res.json().catch(() => ({}));
-				throw new Error(body.message ?? `Request failed (${res.status})`);
-			}
-
 			let result: JobResult | null = null;
-			for await (const event of readNdjson<ProgressEvent>(res)) {
+			for await (const event of active.events) {
 				if (event.type === 'meta') {
 					this.jobId = event.jobId;
 					if (event.durationMs) this.durationMs = event.durationMs;
@@ -93,22 +95,27 @@ export class JobRun {
 					throw new Error(event.message);
 				}
 			}
-			if (!result) throw new Error('The run stopped before it finished.');
+			// The stream ending without a result means the engine stopped early —
+			// unless we were the ones who stopped it, which isn't an error.
+			if (!result && !this.#cancelled) {
+				throw new Error('The run stopped before it finished.');
+			}
 			return result;
 		} catch (e) {
-			// a cancel is a user action, not an error to report back at them
-			if (!(e instanceof DOMException && e.name === 'AbortError')) {
-				this.error = e instanceof Error ? e.message : String(e);
-			}
+			if (!this.#cancelled) this.error = e instanceof Error ? e.message : String(e);
 			return null;
 		} finally {
 			clearInterval(this.#timer);
 			this.phase = null;
-			this.#controller = null;
+			this.#active = null;
+			this.#cancelled = false;
 		}
 	}
 
 	cancel(): void {
-		this.#controller?.abort();
+		// Recorded as well as forwarded: both backends simply stop sending, so
+		// without this the silence that follows looks like a failed run.
+		this.#cancelled = true;
+		this.#active?.cancel();
 	}
 }

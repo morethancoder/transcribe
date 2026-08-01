@@ -4,7 +4,9 @@
 	import Player from './Player.svelte';
 	import { JobRun } from '$lib/job.svelte';
 	import { estimateSpeed, patchEntry, type HistoryEntry } from '$lib/history';
-	import { baseName, download, fmtClock, languageName, toSrt, toText } from '$lib/format';
+	import { baseName, download, fmtClock, fmtSize, languageName, toSrt, toText } from '$lib/format';
+	import { getModel, type ModelId } from '$lib/models';
+	import * as transport from '$lib/transport';
 	import type { Segment } from '$lib/types';
 
 	type Props = {
@@ -18,6 +20,9 @@
 
 	let view = $state<'original' | 'english'>('original');
 	let modelReady = $state(true);
+	/** Which model will actually do the translating — the one picked for
+	 *  transcription when it can, otherwise the multilingual fallback. */
+	let translateModel = $state<ModelId | null>(null);
 	let editing = $state(false);
 	let currentTime = $state(0);
 	let paused = $state(true);
@@ -25,10 +30,11 @@
 	const run = new JobRun();
 
 	onMount(async () => {
-		// translating pulls a second whisper model; say so before they commit
+		// translating may pull a second whisper model; say so before they commit
 		try {
-			const res = await fetch('/api/model?kind=translate');
-			modelReady = (await res.json()).status === 'ready';
+			const state = await transport.modelStatus('translate');
+			modelReady = state.status === 'ready';
+			translateModel = state.resolved ?? null;
 		} catch {
 			modelReady = true;
 		}
@@ -134,8 +140,7 @@
 
 	async function translate() {
 		const result = await run.run(
-			`/api/translate?job=${encodeURIComponent(entry.jobId)}`,
-			{ method: 'POST' },
+			transport.translate({ runId: crypto.randomUUID(), jobId: entry.jobId }),
 			{ durationMs: entry.durationMs, speed: estimateSpeed() }
 		);
 		if (!result) return;
@@ -255,17 +260,19 @@
 		</div>
 
 		{#if run.running}
-			<Progress value={run.progress} label={run.label} detail={run.detail} />
+			<Progress value={run.progress} label={run.label} detail={run.detail} phase={run.phase} />
 			<button class="btn" data-variant="ghost" onclick={() => run.cancel()}>Cancel</button>
 		{:else if canTranslate}
 			<div class="stack" data-gap="8">
 				<button class="btn" data-variant="secondary" onclick={translate}>
 					Translate to English
 				</button>
-				{#if !modelReady}
+				{#if !modelReady && translateModel}
 					<span class="t-secondary">
-						First translation downloads a second Whisper model (~515 MB) — the transcription
-						model can't translate.
+						First translation downloads {getModel(translateModel).label}
+						({fmtSize(getModel(translateModel).bytes)}) — the model set for transcription
+						can't translate. Picking one that can, under "Transcription model", avoids the
+						second download.
 					</span>
 				{/if}
 			</div>
