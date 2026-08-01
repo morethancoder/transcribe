@@ -1,10 +1,9 @@
 /* ----------------------------------------------------------------------------
-   MTUI overrides — the bottom tab bar.
+   MTUI overrides — the bottom tab bar, and safe areas in landscape.
 
-   Two departures from stock MTUI, both in .shell-nav. This is the only place
-   the app writes layout CSS, which MTUI's own guide forbids ("App code never
-   writes layout CSS or media queries"); see
-   fixes/MTUI-SHELL-NAV-FIX-PROMPT.md.
+   Four departures from stock MTUI. This is the only place the app writes
+   layout CSS, which MTUI's own guide forbids ("App code never writes layout
+   CSS or media queries"); see fixes/MTUI-SHELL-NAV-FIX-PROMPT.md.
 
    Selectors are one specificity step above MTUI's (body.shell vs .shell) so
    the overrides don't depend on stylesheet order. `body.shell > .shell-nav`
@@ -14,7 +13,7 @@
    1. Placement. MTUI hardcodes the tab bar below 768px and a 5rem side rail
       at or above it (layout.css:91), with no knob to choose — nav placement
       is the one appearance decision it doesn't expose as a data-* attribute
-      on <html>. With two destinations we want the tab bar at every width, so
+      on <html>. With three destinations we want the tab bar at every width, so
       the media query below undoes that one.
 
    2. Tap targets. Stock items are only as wide as their label (~64px) sitting
@@ -28,6 +27,21 @@
 
       MTUI already transitions background-color on .shell-nav > *
       (layout.css:81-84) but never sets one, so the animation comes free.
+
+   3. Landscape safe areas, the one override that isn't about the nav. MTUI
+      gives .screen-center inline padding that clears the display cutout
+      (layout.css:192), but .screen-stack — the preset all three of our
+      screens use — gets a flat --pad (layout.css:122). Held upright that is
+      fine, since a phone's insets are top and bottom; turned sideways the
+      cutout and the rounded corners bite into the text. Same max() idiom as
+      .screen-center, so --pad still wins wherever there is no inset, which
+      is every desktop window.
+
+   4. Short viewports. A phone in landscape is around 390px tall, and stock
+      chrome spends it freely: header, a 77px tab bar and --pad above and
+      below the stack leave barely a line of transcript between them. Tighten
+      the padding — not the type — below 480px of height. Everything here is
+      MTUI's own spacing scale, and no phone held upright is ever this short.
    -------------------------------------------------------------------------- */
 
 /* 1. tab bar at every width */
@@ -57,11 +71,11 @@ body.shell .shell-nav {
 }
 
 body.shell .shell-nav > * {
-	/* Fill the bar, but stop so the two tabs plus their gap span exactly the
-	   40rem content column above — capping each at a flat 20rem overhangs the
-	   cards by the width of the gap (4px a side). */
+	/* Fill the bar, but stop so the three tabs plus the two gaps between them
+	   span exactly the 40rem content column above — dividing 40rem evenly and
+	   ignoring the gaps overhangs the cards by a gap's width a side. */
 	flex: 1 1 0;
-	max-inline-size: calc((40rem - var(--sp-8)) / 2);
+	max-inline-size: calc((40rem - 2 * var(--sp-8)) / 3);
 	padding-block: var(--sp-8);
 	background: var(--surface-2);
 }
@@ -73,4 +87,26 @@ body.shell .shell-nav > *:hover {
 body.shell .shell-nav > [aria-current]:not([aria-current='false']) {
 	background: var(--accent-tint);
 	color: var(--accent-text);
+}
+
+/* 3. keep content clear of the cutout when the phone is turned sideways */
+body.shell .screen-stack {
+	padding-inline: max(var(--pad), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+}
+
+/* 4. buy back vertical space on a phone in landscape */
+@media (max-height: 480px) {
+	body.shell .shell-nav {
+		padding-block: var(--sp-4);
+		padding-block-end: calc(var(--sp-4) + env(safe-area-inset-bottom, 0px));
+	}
+
+	body.shell .shell-nav > * {
+		padding-block: var(--sp-4);
+	}
+
+	body.shell .screen-stack {
+		padding-block: var(--sp-8);
+		gap: var(--sp-12);
+	}
 }

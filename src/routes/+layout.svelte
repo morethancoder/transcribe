@@ -8,6 +8,8 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 
+	import { applyTheme, loadTheme, saveTheme, watchSystemTheme } from '$lib/settings';
+
 	let { children } = $props();
 
 	let dark = $state(false);
@@ -19,17 +21,22 @@
 		import('morethanui/js/x-select.js');
 		import('morethanui/js/x-toast.js');
 		import('morethanui/js/accordion.js');
+
+		// Someone on "System" who changes their OS theme should see this follow.
+		return watchSystemTheme(() => {
+			applyTheme(loadTheme());
+			dark = document.documentElement.dataset.theme === 'dark';
+		});
 	});
 
+	/**
+	 * The header button is a shortcut, not the setting: it flips to the opposite
+	 * of what is on screen right now and pins that, which is what someone
+	 * reaching for it wants. Choosing "System" again lives in Settings.
+	 */
 	function toggleTheme() {
 		dark = !dark;
-		const theme = dark ? 'dark' : 'light';
-		document.documentElement.dataset.theme = theme;
-		try {
-			localStorage.setItem('mtui-theme', theme);
-		} catch {
-			// private browsing — theme just won't persist
-		}
+		saveTheme(dark ? 'dark' : 'light');
 	}
 </script>
 
@@ -65,6 +72,10 @@
 		<!-- no clock in the MTUI icon set -->
 		<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
 		<span>History</span>
+	</a>
+	<a href="/settings" aria-current={page.url.pathname.startsWith('/settings') ? 'page' : undefined}>
+		<span class="icon" data-icon="settings"></span>
+		<span>Settings</span>
 	</a>
 </nav>
 
