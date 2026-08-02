@@ -31,10 +31,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
-- Renamed to **Transcribe** — product name, window title, app labels, and the
-  repository (now `morethancoder/transcribe`; GitHub redirects the old URLs).
-  The bundle identifier stays `com.morethancoder.transcrape` so existing
-  installs keep updating in place.
+- Renamed to **Transcribe** — product name, window title, app labels, the
+  repository (now `morethancoder/transcribe`; GitHub redirects the old URLs),
+  and the bundle identifier (now `com.morethancoder.transcribe`). The
+  identifier change means phones treat the next release as a new app: install
+  it alongside, then remove the old one.
 
 ## [0.2.0] — 2026-08-01
 
