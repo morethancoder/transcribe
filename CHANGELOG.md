@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-08-02
+
 ### Added
 
 - **A log the phone can show.** Settings gains a Developer section linking to a
@@ -126,7 +128,8 @@ First public release.
   `linux-x64`, `linux-arm64` and `win-x64`, plus `SHA256SUMS`.
 - `make doctor` / `make setup` for first-run tool checks and install.
 
-[Unreleased]: https://github.com/morethancoder/transcribe/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/morethancoder/transcribe/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/morethancoder/transcribe/releases/tag/v0.4.0
 [0.3.0]: https://github.com/morethancoder/transcribe/releases/tag/v0.3.0
 [0.2.0]: https://github.com/morethancoder/transcribe/releases/tag/v0.2.0
 [0.1.0]: https://github.com/morethancoder/transcribe/releases/tag/v0.1.0
