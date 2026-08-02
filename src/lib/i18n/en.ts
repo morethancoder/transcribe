@@ -77,6 +77,11 @@ export const en = {
 		appearanceHelp:
 			'System follows the device, and keeps following it if the device switches while the app is open.',
 
+		developer: 'Developer',
+		developerHelp:
+			'The log shows what the engine did — downloads, transcriptions, and any errors — and never leaves this device. If something fails, the reason is in there.',
+		viewLogs: 'View logs',
+
 		about: 'About',
 		description: 'On-device video and audio transcription, powered by whisper.cpp.',
 		privacy:
@@ -151,6 +156,20 @@ export const en = {
 		cancel: 'Cancel',
 		jumpTo: (time: string) => `Jump to ${time}`,
 		editAria: (time: string) => `Transcript at ${time}`
+	},
+
+	logs: {
+		title: 'Logs',
+		windowTitle: 'Logs — Transcribe',
+		back: 'Back to settings',
+		empty: 'Nothing logged yet',
+		emptyHelp: 'Transcribe a file or download a model, and every step lands here.',
+		copy: 'Copy',
+		copied: 'Logs copied to clipboard',
+		clear: 'Clear',
+		cleared: 'Logs cleared',
+		webNote:
+			'In the browser only this page’s own errors are captured — the engine logs to the server terminal.'
 	},
 
 	run: {

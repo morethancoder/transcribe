@@ -54,14 +54,32 @@ pub fn run(
     progress: &Arc<AtomicI32>,
     cancel: &Arc<AtomicBool>,
 ) -> Result<Transcript> {
+    let model_name = opts
+        .model
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let threads = thread_count();
+    crate::logs::info("whisper", format!("loading {model_name} ({threads} threads)"));
+    let loading = std::time::Instant::now();
+
     let ctx = WhisperContext::new_with_params(opts.model, WhisperContextParameters::default())
-        .map_err(|e| EngineError::msg(format!("Could not load the Whisper model. {e}")))?;
+        .map_err(|e| {
+            // The most common way this fails on a phone is the OS refusing the
+            // memory the model needs — name the model so the log says which.
+            crate::logs::error("whisper", format!("could not load {model_name}: {e}"));
+            EngineError::msg(format!("Could not load the Whisper model. {e}"))
+        })?;
     let mut state = ctx
         .create_state()
         .map_err(|e| EngineError::msg(format!("Could not start Whisper. {e}")))?;
+    crate::logs::info(
+        "whisper",
+        format!("{model_name} loaded in {:.1}s", loading.elapsed().as_secs_f64()),
+    );
 
     let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
-    params.set_n_threads(thread_count());
+    params.set_n_threads(threads);
     params.set_translate(opts.translate);
     // whisper.cpp understands the literal "auto" as detect-then-transcribe, so
     // the code passes straight through. (`set_detect_language(true)` is NOT

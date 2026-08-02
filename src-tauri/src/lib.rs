@@ -8,6 +8,8 @@
 mod commands;
 // Public for examples/engine_smoke.rs, which drives the pipeline without a GUI.
 pub mod engine;
+mod keepalive;
+pub mod logs;
 
 use tauri::Manager;
 
@@ -28,6 +30,22 @@ pub fn run() {
             let models_dir = app.path().app_data_dir()?.join("models");
             let cache_dir = app.path().app_cache_dir()?.join("audio");
 
+            // The log file lives in the platform's log dir and survives a
+            // crash — the Settings → Developer screen reads the live buffer.
+            if let Ok(log_dir) = app.path().app_log_dir() {
+                logs::attach_file(log_dir);
+            }
+            logs::info(
+                "app",
+                format!(
+                    "Transcribe v{} on {} {} ({} cores)",
+                    env!("CARGO_PKG_VERSION"),
+                    std::env::consts::OS,
+                    std::env::consts::ARCH,
+                    std::thread::available_parallelism().map(|n| n.get()).unwrap_or(0)
+                ),
+            );
+
             let state = commands::AppState::new(models_dir, cache_dir);
             // Cached audio from a previous launch is unreachable — the registry
             // is in memory — so clear it out rather than leak it.
@@ -46,6 +64,9 @@ pub fn run() {
             commands::cancel_run,
             commands::job_audio_ready,
             commands::job_audio,
+            commands::logs_recent,
+            commands::logs_clear,
+            commands::log_event,
         ])
         .run(tauri::generate_context!())
         .expect("failed to start transcrape");

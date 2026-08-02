@@ -25,6 +25,29 @@ export function isApp(): boolean {
 	return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
+export type LogLevel = 'info' | 'warn' | 'error';
+
+export type LogEntry = {
+	atMs: number;
+	level: LogLevel;
+	source: string;
+	message: string;
+};
+
+/** The engine's log, newest last. App build only — the web build's engine
+ *  logs to the server terminal, and this returns an empty list there. */
+export async function engineLogs(): Promise<LogEntry[]> {
+	if (!isApp()) return [];
+	const { invoke } = await import('@tauri-apps/api/core');
+	return invoke<LogEntry[]>('logs_recent');
+}
+
+export async function clearEngineLogs(): Promise<void> {
+	if (!isApp()) return;
+	const { invoke } = await import('@tauri-apps/api/core');
+	await invoke('logs_clear');
+}
+
 export type ModelStatus = {
 	status: 'missing' | 'downloading' | 'ready' | 'error';
 	received: number;

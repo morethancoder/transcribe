@@ -6,6 +6,33 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **A log the phone can show.** Settings gains a Developer section linking to a
+  Logs screen: every download, decode, and whisper run — and every error, from
+  the engine or the UI — lands in one prettified, copyable list. Mirrored to a
+  file that survives a crash. Until now a failure on a phone left nothing to
+  look at.
+- **Downloads survive the background on Android.** A `dataSync` foreground
+  service (injected by `scripts/android-service.sh`, since `tauri android
+  init` regenerates the project) holds the process and a wakelock while a
+  download or run is active, so switching apps or turning the screen off no
+  longer freezes them.
+
+### Changed
+
+- **Phones now default to the Small model.** The previous default,
+  `large-v3-turbo`, needs roughly a gigabyte just to load — which mid-range
+  phones refuse, and was the likely reason transcription failed outright on
+  Android. Desktop keeps turbo; every model remains available in the picker.
+
+### Fixed
+
+- The progress bar no longer sits on "Estimating time…" for entire mobile
+  runs: the media duration now reaches the UI right after decoding instead of
+  at the very end, so the ETA fallback engages while whisper is still warming
+  up.
+
 ## [0.3.0] — 2026-08-02
 
 ### Added

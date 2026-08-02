@@ -1,5 +1,6 @@
 import { fmtEta } from './format';
 import { m } from './i18n.svelte';
+import { record } from './logs';
 import type { Run } from './transport';
 import type { Phase, Segment } from './types';
 
@@ -96,7 +97,12 @@ export class JobRun {
 			}
 			return result;
 		} catch (e) {
-			if (!this.#cancelled) this.error = e instanceof Error ? e.message : String(e);
+			if (!this.#cancelled) {
+				this.error = e instanceof Error ? e.message : String(e);
+				// The engine already logged its own failures; this catches the
+				// ones that never reached it (transport, event handling).
+				record('error', 'run', this.error);
+			}
 			return null;
 		} finally {
 			clearInterval(this.#timer);

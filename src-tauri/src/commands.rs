@@ -17,6 +17,8 @@ use tauri_plugin_fs::FsExt;
 use crate::engine::model::{ModelId, ModelKind, ModelState, Models};
 use crate::engine::jobs::{self, Job, Jobs};
 use crate::engine::{audio, whisper, EngineError, Phase, ProgressEvent, Result, Segment};
+use crate::keepalive::KeepAwake;
+use crate::logs;
 
 /// Share of the bar the decode step gets; whisper dominates the rest. Same
 /// split as the web build, so the bar behaves identically across the two.
@@ -136,10 +138,14 @@ pub fn select_model(state: State<'_, AppState>, model: String) -> Result<()> {
 /// `/api/model` polling does.
 #[tauri::command]
 pub async fn ensure_model(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     kind: ModelKind,
     on_event: Channel<ProgressEvent>,
 ) -> Result<()> {
+    // Held across the await so Android can't freeze the process — and the
+    // download with it — when the app leaves the foreground mid-fetch.
+    let _keep = KeepAwake::new(&app, "Downloading a model");
     let mut report = |received: u64, total: u64| {
         let progress = if total > 0 { received as f64 / total as f64 } else { 0.0 };
         let _ = on_event.send(ProgressEvent::Progress { phase: Phase::Downloading, progress });
@@ -165,8 +171,44 @@ pub fn allow_media(app: tauri::AppHandle, path: String) -> Result<()> {
 #[tauri::command]
 pub fn cancel_run(state: State<'_, AppState>, run_id: String) {
     if let Some(flag) = state.runs.lock().unwrap().get(&run_id) {
+        logs::info("engine", "run cancelled by the user");
         flag.store(true, Ordering::Relaxed);
     }
+}
+
+#[tauri::command]
+pub fn logs_recent() -> Vec<logs::Entry> {
+    logs::recent()
+}
+
+#[tauri::command]
+pub fn logs_clear() {
+    logs::clear();
+}
+
+/// Frontend errors land in the same log as the engine's, so the Developer
+/// screen tells one story. Length-capped: this is reachable from the webview.
+#[tauri::command]
+pub fn log_event(level: String, source: String, message: String) {
+    let level = match level.as_str() {
+        "error" => logs::Level::Error,
+        "warn" => logs::Level::Warn,
+        _ => logs::Level::Info,
+    };
+    logs::log(level, trim_to(&source, 32), trim_to(&message, 2000));
+}
+
+/// Truncate on a char boundary — `String::truncate` panics mid-codepoint,
+/// and the webview can send anything.
+fn trim_to(text: &str, max: usize) -> &str {
+    if text.len() <= max {
+        return text;
+    }
+    let mut end = max;
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    &text[..end]
 }
 
 /// Is this job's decoded audio still around to play or translate?
@@ -220,13 +262,24 @@ pub async fn transcribe(
     language: String,
     on_event: Channel<ProgressEvent>,
 ) -> Result<()> {
+    let _keep = KeepAwake::new(&app, "Transcribing");
+    logs::info("engine", format!("transcribe: {path} (language {language})"));
+    let started = std::time::Instant::now();
+
     let cancel = state.begin(&run_id);
     let result = run_transcribe(&app, &state, &path, &language, &cancel, &on_event).await;
     state.end(&run_id);
 
     match result {
-        Ok((job_id, duration_ms, transcript)) => {
-            let _ = on_event.send(ProgressEvent::Meta { job_id, duration_ms });
+        Ok(transcript) => {
+            logs::info(
+                "engine",
+                format!(
+                    "transcribed {} segments in {:.1}s",
+                    transcript.segments.len(),
+                    started.elapsed().as_secs_f64()
+                ),
+            );
             let _ = on_event.send(ProgressEvent::Done {
                 language: transcript.language,
                 segments: transcript.segments,
@@ -236,6 +289,7 @@ pub async fn transcribe(
         Err(e) => {
             // Cancellation is the user's doing, not a failure to report.
             if !matches!(e, EngineError::Cancelled) {
+                logs::error("engine", format!("transcribe failed: {e}"));
                 let _ = on_event.send(ProgressEvent::Error { message: e.to_string() });
             }
             Err(e)
@@ -250,10 +304,14 @@ async fn run_transcribe(
     language: &str,
     cancel: &Arc<AtomicBool>,
     on_event: &Channel<ProgressEvent>,
-) -> Result<(String, i64, whisper::Transcript)> {
+) -> Result<whisper::Transcript> {
     // The model has to be on disk before anything else is worth doing.
     let transcribe_model = state.models.resolve(ModelKind::Transcribe);
     if !state.models.is_ready(transcribe_model) {
+        logs::info(
+            "engine",
+            format!("model {} is not on disk — downloading first", transcribe_model.as_str()),
+        );
         let mut report = |received: u64, total: u64| {
             let progress = if total > 0 { received as f64 / total as f64 } else { 0.0 };
             let _ = on_event.send(ProgressEvent::Progress { phase: Phase::Downloading, progress });
@@ -291,6 +349,26 @@ async fn run_transcribe(
     let _ = pump_handle.await;
     let decoded = decoded?;
 
+    logs::info(
+        "engine",
+        format!(
+            "decoded {:.1}s of audio ({} samples at 16 kHz)",
+            decoded.duration_ms as f64 / 1000.0,
+            decoded.samples.len()
+        ),
+    );
+
+    // The id exists before the run finishes so this Meta can go out *now*:
+    // the duration is what the frontend's ETA falls back on before whisper
+    // reports progress, and whisper's first report can be minutes away on a
+    // phone. Held back until the end, it left the bar saying "estimating…"
+    // for entire runs.
+    let job_id = uuid::Uuid::new_v4().to_string();
+    let _ = on_event.send(ProgressEvent::Meta {
+        job_id: job_id.clone(),
+        duration_ms: decoded.duration_ms,
+    });
+
     // --- transcribe ---------------------------------------------------------
     let _ = on_event.send(ProgressEvent::Progress {
         phase: Phase::Transcribing,
@@ -309,7 +387,6 @@ async fn run_transcribe(
     .await?;
 
     // --- keep the audio for translation and playback -------------------------
-    let job_id = uuid::Uuid::new_v4().to_string();
     state.jobs.ensure_dir()?;
     let wav = state.jobs.wav_path(&job_id);
     let samples = decoded.samples;
@@ -318,28 +395,41 @@ async fn run_transcribe(
         .await
         .map_err(|e| EngineError::msg(format!("Could not cache the audio: {e}")))??;
     state.jobs.keep(Job {
-        id: job_id.clone(),
+        id: job_id,
         wav,
         language: transcript.language.clone(),
         created_at: std::time::SystemTime::now(),
     });
 
-    Ok((job_id, decoded.duration_ms, transcript))
+    Ok(transcript)
 }
 
 #[tauri::command]
 pub async fn translate(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     run_id: String,
     job_id: String,
     on_event: Channel<ProgressEvent>,
 ) -> Result<()> {
+    let _keep = KeepAwake::new(&app, "Translating");
+    logs::info("engine", format!("translate: job {job_id}"));
+    let started = std::time::Instant::now();
+
     let cancel = state.begin(&run_id);
     let result = run_translate(&state, &job_id, &cancel, &on_event).await;
     state.end(&run_id);
 
     match result {
         Ok(transcript) => {
+            logs::info(
+                "engine",
+                format!(
+                    "translated {} segments in {:.1}s",
+                    transcript.segments.len(),
+                    started.elapsed().as_secs_f64()
+                ),
+            );
             let _ = on_event.send(ProgressEvent::Done {
                 language: transcript.language,
                 segments: transcript.segments,
@@ -348,6 +438,7 @@ pub async fn translate(
         }
         Err(e) => {
             if !matches!(e, EngineError::Cancelled) {
+                logs::error("engine", format!("translate failed: {e}"));
                 let _ = on_event.send(ProgressEvent::Error { message: e.to_string() });
             }
             Err(e)

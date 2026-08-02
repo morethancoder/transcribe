@@ -45,7 +45,16 @@ pub enum ModelId {
 }
 
 /// What transcrape has always used, and still the right default on a desktop.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub const DEFAULT_MODEL: ModelId = ModelId::LargeV3Turbo;
+
+/// Phones default to Small. Turbo needs on the order of a gigabyte of memory
+/// just to load, which mid-range phones don't grant before killing the app —
+/// and even when it loads, it runs far slower than the recording. Small is the
+/// largest model that's reliably usable on a phone; anything bigger stays one
+/// tap away in the picker.
+#[cfg(any(target_os = "android", target_os = "ios"))]
+pub const DEFAULT_MODEL: ModelId = ModelId::Small;
 
 /// Filled in when the chosen model can't translate — the smallest model that
 /// translates well enough to be worth the download.
@@ -294,17 +303,34 @@ impl Models {
 
         self.set(id, ModelState { status: Status::Downloading, received: have, total: 0, message: None });
 
-        let result = self.fetch(id, &partial, &dest, have, on_progress).await;
-        if let Err(ref e) = result {
-            self.set(
-                id,
-                ModelState {
-                    status: Status::Error,
-                    received: 0,
-                    total: 0,
-                    message: Some(e.to_string()),
-                },
+        if have > 0 {
+            crate::logs::info(
+                "model",
+                format!("downloading {} — resuming at {:.1} MB", id.file_name(), have as f64 / 1e6),
             );
+        } else {
+            crate::logs::info("model", format!("downloading {}", id.file_name()));
+        }
+
+        let started = std::time::Instant::now();
+        let result = self.fetch(id, &partial, &dest, have, on_progress).await;
+        match &result {
+            Ok(_) => crate::logs::info(
+                "model",
+                format!("{} downloaded in {:.0}s", id.file_name(), started.elapsed().as_secs_f64()),
+            ),
+            Err(e) => {
+                crate::logs::error("model", format!("{} download failed: {e}", id.file_name()));
+                self.set(
+                    id,
+                    ModelState {
+                        status: Status::Error,
+                        received: 0,
+                        total: 0,
+                        message: Some(e.to_string()),
+                    },
+                );
+            }
         }
         result
     }

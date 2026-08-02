@@ -36,9 +36,19 @@ export JAVA_HOME=…                                    # a JDK 17+
 pnpm install
 pnpm tauri android init                               # generates src-tauri/gen/android once
 pnpm tauri icon src-tauri/icon.svg                    # put our launcher icon into it
+bash scripts/android-service.sh                       # inject the background keep-alive service
 bash scripts/android-sign.sh                          # wires up your signing keystore
 pnpm tauri android build --apk --target aarch64       # → src-tauri/gen/android/app/build/outputs/apk/
 ```
+
+`scripts/android-service.sh` copies `src-tauri/android/KeepAliveService.kt`
+into the generated project and adds its manifest entries — a `dataSync`
+foreground service that keeps model downloads and transcriptions running while
+the app is in the background or the screen is off (without it, Android freezes
+the process within moments of leaving the foreground). It has to be re-run
+after any fresh `tauri android init`; CI does. Its status notification only
+shows on Android 13+ once the user grants notification permission, but the
+service protects the work either way.
 
 `scripts/android-sign.sh` creates a keystore under `src-tauri/keystore/` if you
 don't have one and points the Gradle build at it. That directory is gitignored:

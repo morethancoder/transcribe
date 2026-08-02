@@ -114,6 +114,11 @@ jobs:
         env:
           NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/28.2.13676358
 
+      # The keep-alive foreground service (background downloads) lives outside
+      # the generated project and is re-applied after every init.
+      - name: Inject the background service
+        run: bash scripts/android-service.sh
+
       # The keystore never enters git — see scripts/android-sign.sh. CI holds
       # it as two secrets: the .jks base64-encoded, and its properties file.
       #   ANDROID_KEYSTORE_B64        base64 of transcrape-release.jks

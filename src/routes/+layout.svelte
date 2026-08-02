@@ -10,6 +10,7 @@
 
 	import { applyTheme, loadTheme, saveTheme, watchSystemTheme } from '$lib/settings';
 	import { initI18n, m } from '$lib/i18n.svelte';
+	import { installLogCapture } from '$lib/logs';
 	import { checkForUpdate, dismiss, isDismissed, type UpdateInfo } from '$lib/update';
 
 	let { children } = $props();
@@ -19,6 +20,8 @@
 
 	onMount(() => {
 		initI18n();
+		// First, so a failure anywhere below already lands in the log.
+		installLogCapture();
 		dark = document.documentElement.dataset.theme === 'dark';
 		// menu.js is required for x-select/.menu popover anchoring, not optional
 		import('morethanui/js/menu.js');

@@ -214,6 +214,19 @@
 		</div>
 	</section>
 
+	<!-- Developer ------------------------------------------------------------>
+	<section class="stack" data-gap="8">
+		<h2 class="t-card">{m().settings.developer}</h2>
+		<div class="card">
+			<div class="stack" data-gap="12">
+				<p class="t-secondary">{m().settings.developerHelp}</p>
+				<div class="row">
+					<a class="btn" href="/logs">{m().settings.viewLogs}</a>
+				</div>
+			</div>
+		</div>
+	</section>
+
 	<!-- About ---------------------------------------------------------------->
 	<section class="stack" data-gap="8">
 		<h2 class="t-card">{m().settings.about}</h2>

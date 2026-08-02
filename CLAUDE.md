@@ -36,6 +36,30 @@ commits `Cut X.Y.Z`, tags `vX.Y.Z`, pushes, and watches CI.
 - Changelog entries are written under `## [Unreleased]` at PR time, not at
   release time.
 
+## Android specifics
+
+- `src-tauri/gen/android` is generated (`pnpm tauri android init`) and
+  gitignored. Anything that must live inside it — currently
+  `KeepAliveService.kt` and its manifest entries — is injected by
+  `scripts/android-service.sh`, which CI runs after every init. Never edit
+  gen/android expecting it to stick.
+- The keep-alive foreground service (background downloads) is driven from
+  `src-tauri/src/keepalive.rs` via wry's `JniHandle` — no extra crates.
+  `cargo check --target aarch64-linux-android` works on this machine (NDK
+  installed; set `NDK_HOME`/`CMAKE_ANDROID_NDK` and the NDK clang as
+  `CC_aarch64_linux_android`) and is the way to validate Android-only Rust
+  before a release build.
+- The default model is platform-dependent (`engine/model.rs`): Small on
+  Android/iOS, `large-v3-turbo` on desktop — turbo doesn't fit in a phone's
+  memory budget.
+
+## Logging
+
+The engine logs into `src-tauri/src/logs.rs` (ring buffer + file in the app
+log dir), surfaced at Settings → Developer → Logs. Frontend errors are
+forwarded into the same buffer via the `log_event` command. When debugging a
+user-reported mobile failure, ask for a copy from that screen.
+
 ## Checks
 
 `make check` (svelte-check) and `make build` are what CI runs; keep both clean
