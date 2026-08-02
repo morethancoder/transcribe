@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help doctor setup dev build start preview check clean
+.PHONY: help doctor setup dev build start preview check release clean
 
 help: ## show this help
 	@awk 'BEGIN {FS = ":.*?## "; printf "\n\033[1mUsage:\033[0m make \033[36m<target>\033[0m\n\n\033[1mTargets:\033[0m\n"} \
@@ -26,6 +26,9 @@ preview: ## serve the production build locally
 
 check: ## type-check with svelte-check
 	@pnpm check
+
+release: ## bump the version, tag, and publish a GitHub release via CI
+	@bash scripts/release.sh
 
 clean: ## remove build output and caches (keeps the models)
 	@rm -rf .svelte-kit build dist .playwright

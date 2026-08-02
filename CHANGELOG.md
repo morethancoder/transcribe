@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-08-02
+
 ### Added
 
 - **Arabic, with full RTL.** Settings gains an App language choice — English,
@@ -97,6 +99,7 @@ First public release.
   `linux-x64`, `linux-arm64` and `win-x64`, plus `SHA256SUMS`.
 - `make doctor` / `make setup` for first-run tool checks and install.
 
-[Unreleased]: https://github.com/morethancoder/transcribe/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/morethancoder/transcribe/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/morethancoder/transcribe/releases/tag/v0.3.0
 [0.2.0]: https://github.com/morethancoder/transcribe/releases/tag/v0.2.0
 [0.1.0]: https://github.com/morethancoder/transcribe/releases/tag/v0.1.0

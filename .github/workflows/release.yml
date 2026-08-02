@@ -1,12 +1,14 @@
 name: release
 
-# Tag a version (v0.2.0) and this publishes a draft GitHub Release holding:
+# Tag a version (v0.2.0) and this publishes a GitHub Release holding:
 #   - the portable server archives for five platforms (same as `make build`)
 #   - Tauri desktop bundles: macOS .dmg, Linux .AppImage/.deb, Windows installer
 #   - a signed Android APK — the one mobile artifact a release can carry, since
 #     Apple doesn't allow installing iOS apps from a website (docs/MOBILE.md)
 #
-# Drafted, not published: someone reads the checksums and presses the button.
+# The release stays a draft while jobs run, so nobody ever downloads from a
+# half-built release; the publish job flips it public only after every
+# artifact is attached. A failed build leaves the draft unpublished.
 on:
   push:
     tags: ['v*']
@@ -158,3 +160,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "$GITHUB_REF_NAME" dist/* --clobber --repo "$GITHUB_REPOSITORY"
+
+  # Every artifact is attached → the release goes public without anyone
+  # pressing a button. If any job above failed, this never runs and the
+  # draft stays private.
+  publish:
+    needs: [attach-server-archives, android]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false --latest --repo "$GITHUB_REPOSITORY"

@@ -42,6 +42,32 @@ length, language), since that's the part with no automated coverage.
   touches the filesystem goes in `src/lib/server/`, shared types in
   `src/lib/types.ts`.
 
+## Cutting a release
+
+One command:
+
+```sh
+make release                 # prompts for the version (suggests a minor bump)
+VERSION=1.0.0 make release   # or pass it explicitly
+```
+
+The script refuses to run from a dirty tree, a branch other than `main`, or a
+`main` that isn't in sync with origin. It then does everything in order: bumps
+the version, rolls the changelog, commits `Cut X.Y.Z`, tags `vX.Y.Z`, pushes,
+and watches CI until the release is public. Conventions it encodes:
+
+- **The version lives in three files** — `package.json`,
+  `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml` (plus `Cargo.lock`).
+  They must never drift; only ever bump them through `make release`.
+- **CHANGELOG.md is written as you go.** Land user-visible changes with an
+  entry under `## [Unreleased]`; the release script moves that section under
+  the new version. Don't write version sections by hand.
+- **CI publishes the release itself.** The GitHub Release stays a draft while
+  the build jobs attach artifacts, and the final `publish` job flips it public
+  once everything is there. A failed build leaves the draft unpublished — fix
+  the problem and re-run the workflow (or delete the tag and draft, and cut
+  again); never publish a partial draft by hand.
+
 ## Scope
 
 Transcrape is deliberately a local, single-user tool. Changes that assume a

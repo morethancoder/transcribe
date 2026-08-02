@@ -72,6 +72,7 @@ Run bare `make` for the full target list:
 | `make start` | run the production server out of `build/` |
 | `make preview` | serve the production build locally |
 | `make check` | type-check with `svelte-check` |
+| `make release` | bump the version, tag, and publish a GitHub release via CI |
 | `make clean` | drop build output and caches (keeps `models/`) |
 
 ## Building for other platforms
