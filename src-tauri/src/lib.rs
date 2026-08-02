@@ -40,6 +40,7 @@ pub fn run() {
             commands::model_selection,
             commands::select_model,
             commands::ensure_model,
+            commands::allow_media,
             commands::transcribe,
             commands::translate,
             commands::cancel_run,

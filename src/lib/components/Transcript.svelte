@@ -6,6 +6,7 @@
 	import { estimateSpeed, patchEntry, type HistoryEntry } from '$lib/history';
 	import { baseName, download, fmtClock, fmtSize, languageName, toSrt, toText } from '$lib/format';
 	import { getModel, type ModelId } from '$lib/models';
+	import { m } from '$lib/i18n.svelte';
 	import * as transport from '$lib/transport';
 	import type { Segment } from '$lib/types';
 
@@ -147,12 +148,12 @@
 		entry = { ...entry, translation: result.segments };
 		patchEntry(entry.id, { translation: result.segments });
 		view = 'english';
-		window.mtui?.toast('Translated to English', { kind: 'success' });
+		window.mtui?.toast(m().transcript.translated, { kind: 'success' });
 	}
 
 	async function copy() {
 		await navigator.clipboard.writeText(toText(segments));
-		window.mtui?.toast('Copied to clipboard');
+		window.mtui?.toast(m().transcript.copied);
 	}
 </script>
 
@@ -170,14 +171,14 @@
 
 		<div class="row" data-align="between" data-wrap="on">
 			<span class="row" data-gap="8">
-				<span class="t-card">Transcript</span>
+				<span class="t-card">{m().transcript.heading}</span>
 				<span class="badge">{languageName(shownLanguage)}</span>
 			</span>
 			<span class="row" data-gap="8">
 				<button class="btn" data-variant="ghost" onclick={() => (editing = !editing)}>
-					{editing ? 'Done' : 'Edit'}
+					{editing ? m().transcript.done : m().transcript.edit}
 				</button>
-				<button class="btn" data-variant="ghost" onclick={copy}>Copy</button>
+				<button class="btn" data-variant="ghost" onclick={copy}>{m().transcript.copy}</button>
 				<button
 					class="btn"
 					data-variant="ghost"
@@ -203,15 +204,13 @@
 				</label>
 				<label>
 					<input type="radio" name="view-{entry.id}" value="english" bind:group={view} />
-					<span>English</span>
+					<span>{m().transcript.english}</span>
 				</label>
 			</fieldset>
 		{/if}
 
 		{#if editing}
-			<p class="t-secondary">
-				Edits save as you type, and feed the copy and download buttons above.
-			</p>
+			<p class="t-secondary">{m().transcript.editingHint}</p>
 		{/if}
 
 		<div class="stack" data-gap="4">
@@ -219,10 +218,14 @@
 				{#if editing}
 					<div class="seg">
 						<span class="t-label t-ltr seg-time">{fmtClock(seg.from)}</span>
+						<!-- dir=auto: a line's direction comes from its own words — an
+						     Arabic transcript reads right-to-left even in the English UI,
+						     and vice versa -->
 						<textarea
 							class="seg-edit"
 							rows="1"
-							aria-label="Transcript at {fmtClock(seg.from)}"
+							dir="auto"
+							aria-label={m().transcript.editAria(fmtClock(seg.from))}
 							value={seg.text}
 							oninput={(e) => editSegment(i, e.currentTarget.value)}
 							use:autosize
@@ -237,23 +240,23 @@
 					>
 						<span class="t-label t-ltr seg-time">{fmtClock(seg.from)}</span>
 						{#if seg.words?.length}
-							<span class="t-body"
+							<span class="t-body" dir="auto"
 								>{#each seg.words as word, w (w)}<span
 										class="word"
 										data-word={w}
-										title="Jump to {fmtClock(word.from)}"
+										title={m().transcript.jumpTo(fmtClock(word.from))}
 										data-spoken={i === activeIndex && w === activeWord ? '' : undefined}
 										>{word.text}</span
 									>{' '}{/each}</span
 							>
 						{:else}
-							<span class="t-body">{seg.text}</span>
+							<span class="t-body" dir="auto">{seg.text}</span>
 						{/if}
 					</button>
 				{:else}
 					<div class="seg">
 						<span class="t-label t-ltr seg-time">{fmtClock(seg.from)}</span>
-						<span class="t-body">{seg.text}</span>
+						<span class="t-body" dir="auto">{seg.text}</span>
 					</div>
 				{/if}
 			{/each}
@@ -261,18 +264,20 @@
 
 		{#if run.running}
 			<Progress value={run.progress} label={run.label} detail={run.detail} phase={run.phase} />
-			<button class="btn" data-variant="ghost" onclick={() => run.cancel()}>Cancel</button>
+			<button class="btn" data-variant="ghost" onclick={() => run.cancel()}>
+				{m().transcript.cancel}
+			</button>
 		{:else if canTranslate}
 			<div class="stack" data-gap="8">
 				<button class="btn" data-variant="secondary" onclick={translate}>
-					Translate to English
+					{m().transcript.translate}
 				</button>
 				{#if !modelReady && translateModel}
 					<span class="t-secondary">
-						First translation downloads {getModel(translateModel).label}
-						({fmtSize(getModel(translateModel).bytes)}) — the model set for transcription
-						can't translate. Picking one that can, under "Transcription model", avoids the
-						second download.
+						{m().transcript.translateNote(
+							getModel(translateModel).label,
+							fmtSize(getModel(translateModel).bytes)
+						)}
 					</span>
 				{/if}
 			</div>
@@ -282,7 +287,7 @@
 			<div class="alert" data-status="danger">
 				<span class="icon" data-icon="circle-x"></span>
 				<div>
-					<span class="alert-title">Translation failed</span>
+					<span class="alert-title">{m().transcript.translationFailed}</span>
 					<p>{run.error}</p>
 				</div>
 			</div>

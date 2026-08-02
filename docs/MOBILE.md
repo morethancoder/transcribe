@@ -9,7 +9,7 @@ outright. Everything still runs on the device; nothing is uploaded.
 ## Android — install the APK
 
 Grab `transcrape-<version>.apk` from the
-[releases page](https://github.com/morethancoder/transcrape/releases) and open
+[releases page](https://github.com/morethancoder/transcribe/releases) and open
 it on the phone. Android will warn about installing outside a store the first
 time — that's what "allow from this source" is for. Updates install over the
 old version as long as they come from the same releases page (they're signed

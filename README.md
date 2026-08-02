@@ -7,11 +7,11 @@ nothing is uploaded anywhere.
 Built with SvelteKit (Svelte 5) and [MoreThanUI](https://www.npmjs.com/package/morethanui).
 Ships two ways: a local web server (this page), and native apps via
 [Tauri v2](https://v2.tauri.app) for desktop and Android — grab those from the
-[releases page](https://github.com/morethancoder/transcrape/releases). iOS can't
+[releases page](https://github.com/morethancoder/transcribe/releases). iOS can't
 be installed from a download (Apple doesn't allow it); it builds from source
 with a free Apple ID — see [docs/MOBILE.md](docs/MOBILE.md).
 
-![ci](https://github.com/morethancoder/transcrape/actions/workflows/ci.yml/badge.svg)
+![ci](https://github.com/morethancoder/transcribe/actions/workflows/ci.yml/badge.svg)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## What it does

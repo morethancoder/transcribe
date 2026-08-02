@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { clearHistory, loadHistory, type HistoryEntry } from '$lib/history';
 	import { fmtClock, fmtDate, languageName } from '$lib/format';
+	import { m } from '$lib/i18n.svelte';
 
 	let entries = $state<HistoryEntry[] | null>(null);
 	let confirmClear = $state<HTMLDialogElement>();
@@ -14,16 +15,18 @@
 		if (confirmClear?.returnValue !== 'confirm') return;
 		clearHistory();
 		entries = [];
-		window.mtui?.toast('History cleared');
+		window.mtui?.toast(m().history.cleared);
 	}
 </script>
 
+<svelte:head><title>{m().history.windowTitle}</title></svelte:head>
+
 <div class="screen-stack">
 	<div class="row" data-align="between" data-wrap="on">
-		<h1 class="t-page">History</h1>
+		<h1 class="t-page">{m().history.title}</h1>
 		{#if entries?.length}
 			<button class="btn" data-variant="ghost" onclick={() => confirmClear?.showModal()}>
-				Clear history
+				{m().history.clear}
 			</button>
 		{/if}
 	</div>
@@ -40,9 +43,9 @@
 			<span class="empty-icon">
 				<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
 			</span>
-			<span class="t-card">No transcripts yet</span>
-			<p class="t-secondary">Everything you transcribe is kept here, on this device.</p>
-			<a class="btn" data-variant="primary" href="/">Transcribe a file</a>
+			<span class="t-card">{m().history.empty}</span>
+			<p class="t-secondary">{m().history.emptyHelp}</p>
+			<a class="btn" data-variant="primary" href="/">{m().history.transcribeAFile}</a>
 		</div>
 	{:else}
 		<div class="card">
@@ -70,16 +73,21 @@
 
 <dialog class="dialog" bind:this={confirmClear} onclose={onClose}>
 	<form method="dialog" class="stack" data-gap="12">
-		<span class="t-card">Clear all history?</span>
-		<p class="t-secondary">Every saved transcript on this device is removed. This can't be undone.</p>
+		<span class="t-card">{m().history.clearConfirm}</span>
+		<p class="t-secondary">{m().history.clearConfirmHelp}</p>
 		<div class="row" data-gap="8" data-align="between">
-			<button class="btn" value="cancel">Cancel</button>
-			<button class="btn" data-variant="danger" value="confirm">Clear</button>
+			<button class="btn" value="cancel">{m().history.cancel}</button>
+			<button class="btn" data-variant="danger" value="confirm">{m().history.clearAction}</button>
 		</div>
 	</form>
 </dialog>
 
 <style>
+	/* the chevron means "into the entry", which in RTL points the other way */
+	:global([dir='rtl']) .chevron {
+		transform: scaleX(-1);
+	}
+
 	.thumb {
 		flex: 0 0 auto;
 		inline-size: var(--sp-40);

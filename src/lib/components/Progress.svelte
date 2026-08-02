@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { MESSAGE_INTERVAL_MS, PROGRESS_MESSAGES } from '$lib/progress-messages';
+	import { MESSAGE_INTERVAL_MS, progressMessages } from '$lib/progress-messages';
 	import type { Phase } from '$lib/types';
 
 	let {
@@ -11,7 +11,7 @@
 
 	let percent = $derived(Math.round(Math.min(1, Math.max(0, value)) * 100));
 
-	let messages = $derived(phase ? PROGRESS_MESSAGES[phase] : []);
+	let messages = $derived(phase ? progressMessages(phase) : []);
 	let tick = $state(0);
 
 	/**

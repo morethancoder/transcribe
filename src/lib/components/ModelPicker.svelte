@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { MODELS, SUGGESTED, getModel, looksLikePhone, type ModelId } from '$lib/models';
 	import { fmtSize } from '$lib/format';
+	import { m } from '$lib/i18n.svelte';
 
 	type Props = {
 		selected: ModelId;
@@ -23,14 +24,10 @@
 </script>
 
 <details class="accordion">
-	<summary>Transcription model — {current.label} ({fmtSize(current.bytes)})</summary>
+	<summary>{m().models.summary(current.label, fmtSize(current.bytes))}</summary>
 	<div class="accordion-body">
 		<div class="stack" data-gap="12">
-			<p class="t-secondary">
-				Bigger models hear better and take longer. The suggestion below is only a starting
-				point — every model is available on every device, so if you want the most accurate
-				one on a phone, take it.
-			</p>
+			<p class="t-secondary">{m().models.intro}</p>
 
 			{#each MODELS as model (model.id)}
 				<label class="choice">
@@ -47,25 +44,22 @@
 							<span class="badge">{fmtSize(model.bytes)}</span>
 							{#if model.id === suggested}
 								<span class="badge" data-status="success">
-									Suggested for {phone ? 'phones' : 'desktop'}
+									{phone ? m().models.suggestedPhone : m().models.suggestedDesktop}
 								</span>
 							{/if}
 							{#if available.includes(model.id)}
-								<span class="badge">Downloaded</span>
+								<span class="badge">{m().models.downloaded}</span>
 							{/if}
 							{#if !model.translates}
-								<span class="badge" data-status="warning">Can't translate</span>
+								<span class="badge" data-status="warning">{m().models.cantTranslate}</span>
 							{/if}
 						</span>
-						<span class="t-secondary">{model.blurb}</span>
+						<span class="t-secondary">{m().models.blurbs[model.id] ?? model.blurb}</span>
 					</span>
 				</label>
 			{/each}
 
-			<p class="t-secondary">
-				Switching models downloads the new one the first time you use it. The old one stays
-				on disk, so switching back is instant.
-			</p>
+			<p class="t-secondary">{m().models.footnote}</p>
 		</div>
 	</div>
 </details>

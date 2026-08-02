@@ -4,7 +4,7 @@ version = "0.2.0"
 description = "On-device video and audio transcription, powered by whisper.cpp"
 authors = ["morethancoder"]
 license = "MIT"
-repository = "https://github.com/morethancoder/transcrape"
+repository = "https://github.com/morethancoder/transcribe"
 edition = "2021"
 rust-version = "1.77.2"
 
@@ -19,10 +19,12 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-# No `protocol-asset`: the decoded audio reaches the player as bytes from the
-# `job_audio` command, which keeps the cache directory out of the webview's
-# reach entirely rather than exposing a path scope to it.
-tauri = { version = "2", features = [] }
+# `protocol-asset` exists solely so the picked media file can be previewed:
+# its scope starts empty and `allow_media` admits exactly the file the user
+# picked, one at a time. The decoded audio still reaches the player as bytes
+# from the `job_audio` command, keeping the cache directory out of the
+# webview's reach entirely.
+tauri = { version = "2", features = ["protocol-asset"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 whisper-rs = "0.16"

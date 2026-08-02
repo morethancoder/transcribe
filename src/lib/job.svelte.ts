@@ -1,13 +1,7 @@
 import { fmtEta } from './format';
+import { m } from './i18n.svelte';
 import type { Run } from './transport';
 import type { Phase, Segment } from './types';
-
-const PHASE_LABEL: Record<Phase, string> = {
-	preparing: 'Preparing audio',
-	transcribing: 'Transcribing',
-	downloading: 'Downloading translation model',
-	translating: 'Translating to English'
-};
 
 export type JobResult = { language: string; segments: Segment[] };
 
@@ -37,7 +31,7 @@ export class JobRun {
 
 	running = $derived(this.phase !== null);
 
-	label = $derived(this.phase ? PHASE_LABEL[this.phase] : '');
+	label = $derived(this.phase ? m().run[this.phase] : '');
 
 	/** Milliseconds left, or null while there's nothing to base a guess on. */
 	remainingMs = $derived.by(() => {
@@ -50,7 +44,7 @@ export class JobRun {
 		return null;
 	});
 
-	detail = $derived(this.remainingMs === null ? 'Estimating time…' : fmtEta(this.remainingMs));
+	detail = $derived(this.remainingMs === null ? m().run.estimating : fmtEta(this.remainingMs));
 
 	/**
 	 * Drive one run to completion.
@@ -98,7 +92,7 @@ export class JobRun {
 			// The stream ending without a result means the engine stopped early —
 			// unless we were the ones who stopped it, which isn't an error.
 			if (!result && !this.#cancelled) {
-				throw new Error('The run stopped before it finished.');
+				throw new Error(m().run.stoppedEarly);
 			}
 			return result;
 		} catch (e) {

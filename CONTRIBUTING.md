@@ -5,7 +5,7 @@ Thanks for taking a look. Issues and pull requests are welcome.
 ## Getting set up
 
 ```sh
-git clone https://github.com/morethancoder/transcrape.git
+git clone https://github.com/morethancoder/transcribe.git
 cd transcrape
 make setup   # checks node, pnpm, ffmpeg, whisper-cli — then installs deps
 make dev

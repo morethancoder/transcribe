@@ -14,6 +14,17 @@
 					(pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 				document.documentElement.dataset.theme = dark ? 'dark' : 'light';
 			} catch (e) {}
+			// Same idea for direction: resolve Arabic before first paint, or an
+			// RTL user watches the page flip after hydration. Kept in sync with
+			// $lib/i18n.svelte — same key, same values.
+			try {
+				var lang = localStorage.getItem('transcrape-app-language') || 'system';
+				if (lang === 'system') {
+					lang = (navigator.language || '').toLowerCase().indexOf('ar') === 0 ? 'ar' : 'en';
+				}
+				document.documentElement.lang = lang;
+				document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+			} catch (e) {}
 		</script>
 		%sveltekit.head%
 	</head>

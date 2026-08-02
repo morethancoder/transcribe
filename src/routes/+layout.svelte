@@ -9,12 +9,16 @@
 	import { page } from '$app/state';
 
 	import { applyTheme, loadTheme, saveTheme, watchSystemTheme } from '$lib/settings';
+	import { initI18n, m } from '$lib/i18n.svelte';
+	import { checkForUpdate, dismiss, isDismissed, type UpdateInfo } from '$lib/update';
 
 	let { children } = $props();
 
 	let dark = $state(false);
+	let update = $state<UpdateInfo | null>(null);
 
 	onMount(() => {
+		initI18n();
 		dark = document.documentElement.dataset.theme === 'dark';
 		// menu.js is required for x-select/.menu popover anchoring, not optional
 		import('morethanui/js/menu.js');
@@ -22,12 +26,23 @@
 		import('morethanui/js/x-toast.js');
 		import('morethanui/js/accordion.js');
 
+		// One release check per session. The banner respects a dismissal until
+		// the *next* release — nagging every launch teaches people to stop reading.
+		checkForUpdate().then((found) => {
+			if (found && !isDismissed(found.version)) update = found;
+		});
+
 		// Someone on "System" who changes their OS theme should see this follow.
 		return watchSystemTheme(() => {
 			applyTheme(loadTheme());
 			dark = document.documentElement.dataset.theme === 'dark';
 		});
 	});
+
+	function dismissUpdate() {
+		if (update) dismiss(update.version);
+		update = null;
+	}
 
 	/**
 	 * The header button is a shortcut, not the setting: it flips to the opposite
@@ -42,16 +57,16 @@
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
-	<title>Transcrape</title>
+	<title>{m().appName}</title>
 </svelte:head>
 
 <header class="shell-header">
-	<span class="t-card">Transcrape</span>
+	<span class="t-card">{m().appName}</span>
 	<button
 		class="btn"
 		data-variant="ghost"
 		data-size="icon"
-		aria-label="Toggle dark mode"
+		aria-label={m().nav.toggleTheme}
 		style="margin-inline-start: auto"
 		onclick={toggleTheme}
 	>
@@ -66,19 +81,44 @@
 <nav class="shell-nav">
 	<a href="/" aria-current={page.url.pathname === '/' ? 'page' : undefined}>
 		<span class="icon" data-icon="home"></span>
-		<span>Transcribe</span>
+		<span>{m().nav.transcribe}</span>
 	</a>
 	<a href="/history" aria-current={page.url.pathname.startsWith('/history') ? 'page' : undefined}>
 		<!-- no clock in the MTUI icon set -->
 		<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
-		<span>History</span>
+		<span>{m().nav.history}</span>
 	</a>
 	<a href="/settings" aria-current={page.url.pathname.startsWith('/settings') ? 'page' : undefined}>
 		<span class="icon" data-icon="settings"></span>
-		<span>Settings</span>
+		<span>{m().nav.settings}</span>
 	</a>
 </nav>
 
 <main class="shell-content">
+	{#if update}
+		<div class="alert update">
+			<span class="icon" data-icon="info"></span>
+			<div class="stack" data-gap="8">
+				<span class="alert-title">{m().update.available(update.version)}</span>
+				<p>{m().update.body}</p>
+				<div class="row" data-gap="8" data-wrap="on">
+					<a class="btn" data-variant="primary" href={update.url} target="_blank" rel="noreferrer noopener">
+						{m().update.get}
+					</a>
+					<button class="btn" data-variant="ghost" onclick={dismissUpdate}>
+						{m().update.dismiss}
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
 	{@render children()}
 </main>
+
+<style>
+	/* The banner sits inside the content column, so it scrolls away with the
+	   page instead of stealing a permanent strip of a phone screen. */
+	.update {
+		margin-block-end: var(--sp-16);
+	}
+</style>

@@ -6,6 +6,7 @@
 	import { getEntry, removeEntry, type HistoryEntry } from '$lib/history';
 	import * as transport from '$lib/transport';
 	import { fmtClock, fmtDate, fmtSize } from '$lib/format';
+	import { m } from '$lib/i18n.svelte';
 
 	// history lives in localStorage, so there's nothing to show until we're
 	// mounted in the browser — null means "still looking"
@@ -34,7 +35,7 @@
 		if (confirmDelete?.returnValue !== 'confirm' || !entry) return;
 		removeEntry(entry.id);
 		await goto('/history');
-		window.mtui?.toast('Transcript deleted');
+		window.mtui?.toast(m().history.deleted);
 	}
 </script>
 
@@ -50,9 +51,9 @@
 	{:else if !entry}
 		<div class="empty">
 			<span class="empty-icon"><span class="icon" data-icon="circle-x"></span></span>
-			<span class="t-card">Transcript not found</span>
-			<p class="t-secondary">It may have been deleted or saved in another browser.</p>
-			<a class="btn" data-variant="primary" href="/history">Back to history</a>
+			<span class="t-card">{m().history.notFound}</span>
+			<p class="t-secondary">{m().history.notFoundHelp}</p>
+			<a class="btn" data-variant="primary" href="/history">{m().history.back}</a>
 		</div>
 	{:else}
 		<div class="row" data-gap="12" data-align="start">
@@ -72,25 +73,22 @@
 		<Transcript bind:entry={() => entry!, (v) => (entry = v)} {mediaSrc} mediaKind="audio" />
 
 		{#if !mediaSrc}
-			<p class="t-secondary">
-				Playback isn't available — the server only keeps the audio for a few hours after
-				transcribing. The transcript is still fully editable.
-			</p>
+			<p class="t-secondary">{m().history.noPlayback}</p>
 		{/if}
 
 		<button class="btn" data-variant="ghost" onclick={() => confirmDelete?.showModal()}>
-			Delete transcript
+			{m().history.deleteTranscript}
 		</button>
 	{/if}
 </div>
 
 <dialog class="dialog" bind:this={confirmDelete} onclose={onClose}>
 	<form method="dialog" class="stack" data-gap="12">
-		<span class="t-card">Delete this transcript?</span>
-		<p class="t-secondary">This can't be undone.</p>
+		<span class="t-card">{m().history.deleteConfirm}</span>
+		<p class="t-secondary">{m().history.deleteConfirmHelp}</p>
 		<div class="row" data-gap="8" data-align="between">
-			<button class="btn" value="cancel">Cancel</button>
-			<button class="btn" data-variant="danger" value="confirm">Delete</button>
+			<button class="btn" value="cancel">{m().history.cancel}</button>
+			<button class="btn" data-variant="danger" value="confirm">{m().history.deleteAction}</button>
 		</div>
 	</form>
 </dialog>

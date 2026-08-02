@@ -148,6 +148,20 @@ pub async fn ensure_model(
     Ok(())
 }
 
+/// Let the webview load one picked file over the asset protocol, for the
+/// poster frame and playback. The scope starts empty and grows only by the
+/// files the user has actually picked — never a directory.
+///
+/// Android hands the picker a `content://` URI the asset protocol can't read;
+/// the frontend treats a failure here as "no preview" and carries on.
+#[tauri::command]
+pub fn allow_media(app: tauri::AppHandle, path: String) -> Result<()> {
+    use tauri::Manager;
+    app.asset_protocol_scope()
+        .allow_file(&path)
+        .map_err(|e| EngineError::msg(format!("Could not expose the file for preview: {e}")))
+}
+
 #[tauri::command]
 pub fn cancel_run(state: State<'_, AppState>, run_id: String) {
     if let Some(flag) = state.runs.lock().unwrap().get(&run_id) {

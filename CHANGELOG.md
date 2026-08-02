@@ -6,6 +6,36 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Arabic, with full RTL.** Settings gains an App language choice — English,
+  العربية, or System (the default, which follows the device language). The
+  whole UI is translated and flips direction live, transcript lines set their
+  own direction from their words (`dir="auto"`), and the choice is resolved
+  before first paint so Arabic never flashes in left-to-right.
+- **Update notice.** The app asks GitHub Releases (once per session) whether a
+  newer version exists, and shows a dismissable banner plus a note in Settings
+  → About linking to the release. Detection only — no self-updating.
+- The app build now shows the poster frame and plays back the picked file,
+  served over Tauri's asset protocol with a scope that only ever contains the
+  files actually picked.
+- Settings shows a real progress bar, with sizes, while a model downloads.
+
+### Fixed
+
+- The app build never started model downloads — the model sat at "missing"
+  forever and the Transcribe button stayed disabled. Asking for model status
+  now starts the download exactly as the web build's `/api/model` does, and
+  concurrent requests for the same model are serialised in Rust so they can't
+  corrupt the partial file.
+
+### Changed
+
+- Renamed to **Transcribe** — product name, window title, app labels, and the
+  repository (now `morethancoder/transcribe`; GitHub redirects the old URLs).
+  The bundle identifier stays `com.morethancoder.transcrape` so existing
+  installs keep updating in place.
+
 ## [0.2.0] — 2026-08-01
 
 ### Added
@@ -66,6 +96,6 @@ First public release.
   `linux-x64`, `linux-arm64` and `win-x64`, plus `SHA256SUMS`.
 - `make doctor` / `make setup` for first-run tool checks and install.
 
-[Unreleased]: https://github.com/morethancoder/transcrape/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/morethancoder/transcrape/releases/tag/v0.2.0
-[0.1.0]: https://github.com/morethancoder/transcrape/releases/tag/v0.1.0
+[Unreleased]: https://github.com/morethancoder/transcribe/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/morethancoder/transcribe/releases/tag/v0.2.0
+[0.1.0]: https://github.com/morethancoder/transcribe/releases/tag/v0.1.0

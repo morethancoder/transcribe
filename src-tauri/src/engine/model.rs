@@ -10,7 +10,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -174,12 +174,21 @@ pub struct Models {
     /// role that has stopped pointing at it.
     states: Mutex<HashMap<ModelId, ModelState>>,
     selected: Mutex<ModelId>,
+    /// One download per model at a time. The picker's polling and a run that
+    /// needs the same model can both call `ensure`; without this they would
+    /// append to the same partial file at once.
+    locks: Mutex<HashMap<ModelId, Arc<tokio::sync::Mutex<()>>>>,
 }
 
 impl Models {
     pub fn new(dir: PathBuf) -> Self {
         let selected = load_selection(&dir);
-        Self { dir, states: Mutex::new(HashMap::new()), selected: Mutex::new(selected) }
+        Self {
+            dir,
+            states: Mutex::new(HashMap::new()),
+            selected: Mutex::new(selected),
+            locks: Mutex::new(HashMap::new()),
+        }
     }
 
     /// Which model is currently doing the transcribing.
@@ -262,6 +271,16 @@ impl Models {
         on_progress: &mut (dyn FnMut(u64, u64) + Send),
     ) -> Result<PathBuf> {
         let dest = self.path(id);
+        if dest.is_file() {
+            return Ok(dest);
+        }
+
+        let lock = {
+            let mut locks = self.locks.lock().unwrap();
+            Arc::clone(locks.entry(id).or_default())
+        };
+        let _guard = lock.lock().await;
+        // Whoever held the lock may have finished the download while we waited.
         if dest.is_file() {
             return Ok(dest);
         }

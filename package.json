@@ -5,13 +5,13 @@
 	"license": "MIT",
 	"private": true,
 	"type": "module",
-	"homepage": "https://github.com/morethancoder/transcrape",
+	"homepage": "https://github.com/morethancoder/transcribe",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/morethancoder/transcrape.git"
+		"url": "git+https://github.com/morethancoder/transcribe.git"
 	},
 	"bugs": {
-		"url": "https://github.com/morethancoder/transcrape/issues"
+		"url": "https://github.com/morethancoder/transcribe/issues"
 	},
 	"keywords": [
 		"transcription",

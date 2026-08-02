@@ -1,4 +1,6 @@
 import type { Segment } from './types';
+import { locale, m } from './i18n.svelte';
+import { LANGUAGES } from './languages';
 
 export function fmtSize(bytes: number): string {
 	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -21,16 +23,18 @@ export function fmtClock(ms: number): string {
  *  than a ticking 02:59 when the estimate is only accurate to ±20%. */
 export function fmtEta(ms: number): string {
 	const s = Math.round(ms / 1000);
-	if (s < 10) return 'a few seconds left';
-	if (s < 60) return `about ${Math.round(s / 10) * 10} seconds left`;
-	const m = Math.round(s / 60);
-	if (m < 60) return `about ${m} min left`;
-	const h = Math.floor(m / 60);
-	return `about ${h} h ${m % 60} min left`;
+	const eta = m().eta;
+	if (s < 10) return eta.seconds;
+	if (s < 60) return eta.aboutSeconds(Math.round(s / 10) * 10);
+	const min = Math.round(s / 60);
+	if (min < 60) return eta.aboutMinutes(min);
+	const h = Math.floor(min / 60);
+	return eta.aboutHours(h, min % 60);
 }
 
 export function fmtDate(ts: number): string {
-	return new Date(ts).toLocaleString(undefined, {
+	// An Arabic UI gets Arabic dates; English follows whatever the device says.
+	return new Date(ts).toLocaleString(locale() === 'ar' ? 'ar' : undefined, {
 		dateStyle: 'medium',
 		timeStyle: 'short'
 	});
@@ -38,10 +42,19 @@ export function fmtDate(ts: number): string {
 
 export function languageName(code: string): string {
 	try {
-		return new Intl.DisplayNames(undefined, { type: 'language' }).of(code) ?? code;
+		return new Intl.DisplayNames([locale()], { type: 'language' }).of(code) ?? fallbackName(code);
 	} catch {
-		return code;
+		return fallbackName(code);
 	}
+}
+
+/** `languageName` plus the one code Intl knows nothing about. */
+export function languageDisplay(code: string): string {
+	return code === 'auto' ? m().autoDetect : languageName(code);
+}
+
+function fallbackName(code: string): string {
+	return LANGUAGES.find(([c]) => c === code)?.[1] ?? code;
 }
 
 export function toText(segments: Segment[]): string {

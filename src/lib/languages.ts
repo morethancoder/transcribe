@@ -1,4 +1,9 @@
-/** Languages the model is offered for — shared by the picker and the API guard. */
+/**
+ * Languages the model is offered for — shared by the picker and the API guard,
+ * so it stays free of UI concerns (the server imports it too). The English
+ * names are only the fallback; the pickers localise codes through
+ * `languageDisplay` in `$lib/format`.
+ */
 export const LANGUAGES: [string, string][] = [
 	['auto', 'Auto-detect'],
 	['ar', 'Arabic'],
@@ -26,7 +31,3 @@ export const LANGUAGES: [string, string][] = [
 ];
 
 export const LANGUAGE_CODES = new Set(LANGUAGES.map(([code]) => code));
-
-export function languageLabel(code: string): string {
-	return LANGUAGES.find(([c]) => c === code)?.[1] ?? code;
-}

@@ -4,10 +4,11 @@
 	import Transcript from '$lib/components/Transcript.svelte';
 	import { JobRun } from '$lib/job.svelte';
 	import { DEFAULT_MODEL, getModel, type ModelId } from '$lib/models';
-	import { LANGUAGES, languageLabel } from '$lib/languages';
+	import { LANGUAGES } from '$lib/languages';
 	import { loadLanguage } from '$lib/settings';
 	import { addEntry, estimateSpeed, type HistoryEntry } from '$lib/history';
-	import { fmtSize } from '$lib/format';
+	import { fmtSize, languageDisplay } from '$lib/format';
+	import { locale, m } from '$lib/i18n.svelte';
 	import { videoThumbnail } from '$lib/thumbnail';
 	import * as transport from '$lib/transport';
 	import type { ModelStatus, Source } from '$lib/transport';
@@ -20,8 +21,9 @@
 	 * Two shapes, because the backends differ: the server takes the bytes, so
 	 * `file` is a real `File` and everything the browser can do with one — poster
 	 * frame, size, playback without a round trip — comes free. The app build gets
-	 * a path from a native dialog instead, and none of that is available from a
-	 * path alone, so those extras are simply absent there.
+	 * a path from a native dialog instead; the asset protocol serves that path
+	 * back for the poster frame and playback, but the size stays unknown until
+	 * the engine opens the file.
 	 */
 	let source = $state<Source | null>(null);
 	let language = $state('auto');
@@ -59,7 +61,7 @@
 		try {
 			model = await transport.modelStatus();
 		} catch {
-			model = { status: 'error', received: 0, total: 0, message: 'Engine unreachable' };
+			model = { status: 'error', received: 0, total: 0, message: m().settings.engineUnreachable };
 		}
 		// Keep polling while a download is in flight; a switch to a model that
 		// isn't on disk yet restarts exactly this loop.
@@ -71,6 +73,9 @@
 		// The picker for this lives in Settings; here it's only a starting value.
 		language = loadLanguage();
 		poll();
+		// Warm the dialog plugin so the first tap on the picker doesn't pay for
+		// the dynamic import on top of opening the native dialog.
+		if (app) void import('@tauri-apps/plugin-dialog');
 		return () => clearTimeout(pollTimer);
 	});
 
@@ -95,12 +100,24 @@
 	 */
 	async function pickNative() {
 		const picked = await transport.pickFile();
-		if (!picked) return;
+		if (!picked || picked.kind !== 'path') return;
 		releaseMedia();
 		source = picked;
 		entry = null;
 		thumbnail = null;
 		run.error = '';
+		// The asset protocol serves the picked file back to the webview, which
+		// buys the same extras the web build gets from its File: a poster frame
+		// and playback. Null on platforms that can't (Android's content:// URIs)
+		// — the preview is decoration, transcription doesn't need it.
+		const src = await transport.mediaUrl(picked.path);
+		if (source !== picked) return; // a faster second pick already replaced us
+		mediaSrc = src;
+		if (src && mediaKind === 'video') {
+			videoThumbnail(src).then((poster) => {
+				if (source === picked) thumbnail = poster;
+			});
+		}
 	}
 
 	function reset() {
@@ -147,7 +164,7 @@
 		};
 		addEntry(saved);
 		entry = saved;
-		window.mtui?.toast('Transcription complete', { kind: 'success' });
+		window.mtui?.toast(m().home.complete, { kind: 'success' });
 	}
 </script>
 
@@ -159,16 +176,16 @@
 		<!-- exactly one of these shows, chosen by pointer type: "drop" is a lie on
 		     touch, "tap" is a lie with a mouse -->
 		<p class="t-body drop-fine">
-			{app ? 'Click to choose a video or audio file' : 'Drop a video or audio file here, or click to choose'}
+			{app ? m().home.clickToChoose : m().home.dropFine}
 		</p>
-		<p class="t-body drop-touch">Tap to choose a video or audio file</p>
+		<p class="t-body drop-touch">{m().home.tapToChoose}</p>
 	</div>
 {/snippet}
 
 <div class="screen-stack">
 	<div class="stack" data-gap="4">
-		<h1 class="t-page">Transcribe a video or audio file</h1>
-		<p class="t-secondary">Runs locally with Whisper — nothing leaves your device.</p>
+		<h1 class="t-page">{m().home.title}</h1>
+		<p class="t-secondary">{m().home.subtitle}</p>
 	</div>
 
 	{#if !source}
@@ -220,7 +237,7 @@
 						class="btn"
 						data-variant="ghost"
 						data-size="icon"
-						aria-label="Remove file"
+						aria-label={m().home.removeFile}
 						onclick={reset}
 					>
 						<span class="icon" data-icon="x"></span>
@@ -232,20 +249,24 @@
 		{#if !run.running && !entry}
 			<!-- auto-detect covers almost every file, so the picker stays folded away -->
 			<details class="accordion">
-				<summary>Spoken language — {languageLabel(language)}</summary>
+				<summary>{m().home.spokenLanguageSummary(languageDisplay(language))}</summary>
 				<div class="accordion-body">
-					<x-select>
-						<label class="field">
-							<span class="t-label">Spoken language</span>
-							<span class="select">
-								<select bind:value={language}>
-									{#each LANGUAGES as [code, name] (code)}
-										<option value={code}>{name}</option>
-									{/each}
-								</select>
-							</span>
-						</label>
-					</x-select>
+					<!-- keyed: x-select copies option text into its facade on mount,
+					     so a language switch has to remount it -->
+					{#key locale()}
+						<x-select>
+							<label class="field">
+								<span class="t-label">{m().home.spokenLanguage}</span>
+								<span class="select">
+									<select bind:value={language}>
+										{#each LANGUAGES as [code] (code)}
+											<option value={code}>{languageDisplay(code)}</option>
+										{/each}
+									</select>
+								</span>
+							</label>
+						</x-select>
+					{/key}
 				</div>
 			</details>
 		{/if}
@@ -255,10 +276,8 @@
 		<div class="card">
 			<Progress
 				value={model.total ? model.received / model.total : 0}
-				label="Downloading {getModel(selectedModel).label}"
-				detail="{fmtSize(model.received)} of {fmtSize(
-					model.total
-				)} — one-time per model; transcription unlocks when it finishes."
+				label={m().home.downloadingModel(getModel(selectedModel).label)}
+				detail={m().home.downloadDetail(fmtSize(model.received), fmtSize(model.total))}
 				phase="downloading"
 			/>
 		</div>
@@ -266,8 +285,8 @@
 		<div class="alert" data-status="danger">
 			<span class="icon" data-icon="alert-triangle"></span>
 			<div>
-				<span class="alert-title">Model download failed</span>
-				<p>{model.message ?? 'Unknown error'} — retrying automatically.</p>
+				<span class="alert-title">{m().home.downloadFailed}</span>
+				<p>{m().home.retrying(model.message ?? m().settings.unknownError)}</p>
 			</div>
 		</div>
 	{/if}
@@ -276,7 +295,7 @@
 		<div class="card">
 			<Progress value={run.progress} label={run.label} detail={run.detail} phase={run.phase} />
 		</div>
-		<button class="btn" data-variant="ghost" onclick={() => run.cancel()}>Cancel</button>
+		<button class="btn" data-variant="ghost" onclick={() => run.cancel()}>{m().home.cancel}</button>
 	{:else if source && !entry}
 		<button
 			class="btn"
@@ -284,7 +303,7 @@
 			disabled={model.status !== 'ready'}
 			onclick={transcribe}
 		>
-			Transcribe
+			{m().home.transcribe}
 		</button>
 	{/if}
 
@@ -292,7 +311,7 @@
 		<div class="alert" data-status="danger">
 			<span class="icon" data-icon="circle-x"></span>
 			<div>
-				<span class="alert-title">Transcription failed</span>
+				<span class="alert-title">{m().home.failed}</span>
 				<p>{run.error}</p>
 			</div>
 		</div>
@@ -300,7 +319,7 @@
 
 	{#if entry}
 		<Transcript bind:entry={() => entry!, (v) => (entry = v)} {mediaSrc} {mediaKind} />
-		<button class="btn" data-variant="ghost" onclick={reset}>Transcribe another file</button>
+		<button class="btn" data-variant="ghost" onclick={reset}>{m().home.transcribeAnother}</button>
 	{/if}
 </div>
 

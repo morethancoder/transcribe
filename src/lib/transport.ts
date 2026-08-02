@@ -88,6 +88,29 @@ class EventQueue implements AsyncIterable<ProgressEvent> {
 
 // --- model -----------------------------------------------------------------
 
+/**
+ * True while the app build has an `ensure_model` invoke in flight, so the
+ * polling that lands every 1.5 s doesn't stack a second one on top. Rust
+ * serialises downloads per model anyway; this just keeps the IPC quiet.
+ */
+let ensuring = false;
+
+/** Start the download in Rust and let it run; polling reports its progress. */
+async function ensureAppModel(kind: 'transcribe' | 'translate'): Promise<void> {
+	if (ensuring) return;
+	ensuring = true;
+	try {
+		const { invoke, Channel } = await import('@tauri-apps/api/core');
+		// Progress reaches the UI through `model_state` polling — the channel is
+		// only here because the command signature demands one.
+		await invoke('ensure_model', { kind, onEvent: new Channel<ProgressEvent>() });
+	} catch {
+		// the failure is recorded in Rust and surfaces on the next status poll
+	} finally {
+		ensuring = false;
+	}
+}
+
 export async function modelStatus(kind: 'transcribe' | 'translate' = 'transcribe'): Promise<ModelStatus> {
 	if (isApp()) {
 		const { invoke } = await import('@tauri-apps/api/core');
@@ -97,7 +120,14 @@ export async function modelStatus(kind: 'transcribe' | 'translate' = 'transcribe
 				kind
 			})
 		]);
-		return { ...state, ...selection };
+		const status = { ...state, ...selection };
+		// Same contract as the web build's GET /api/model: asking about the
+		// transcription model starts (or retries) its download when it's absent.
+		if (kind === 'transcribe' && (status.status === 'missing' || status.status === 'error')) {
+			void ensureAppModel(kind);
+			return { ...status, status: 'downloading' };
+		}
+		return status;
 	}
 	const res = await fetch(`/api/model${kind === 'translate' ? '?kind=translate' : ''}`);
 	return res.json();
@@ -147,6 +177,25 @@ export async function pickFile(): Promise<Source | null> {
 	if (typeof picked !== 'string') return null;
 	const name = picked.split(/[/\\]/).pop() ?? picked;
 	return { kind: 'path', path: picked, name };
+}
+
+/**
+ * A URL the webview can load for a picked path, for the poster frame and
+ * playback. Rust admits the one file into the asset protocol's scope first —
+ * the scope starts empty, so nothing is reachable that wasn't picked.
+ *
+ * Null when the platform can't serve it (Android's `content://` URIs, for
+ * one); a preview is decoration, and the transcription path doesn't need it.
+ */
+export async function mediaUrl(path: string): Promise<string | null> {
+	if (!isApp()) return null;
+	try {
+		const { invoke, convertFileSrc } = await import('@tauri-apps/api/core');
+		await invoke('allow_media', { path });
+		return convertFileSrc(path);
+	} catch {
+		return null;
+	}
 }
 
 // --- runs ------------------------------------------------------------------
