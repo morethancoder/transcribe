@@ -1,8 +1,9 @@
 # Transcribe — project notes for Claude
 
 Local transcription app: SvelteKit web app + Node server, wrapped by Tauri for
-desktop and Android. `docs/ARCHITECTURE.md` explains the layout,
-`docs/MOBILE.md` the mobile story, `CONTRIBUTING.md` the house style.
+desktop and Android. `docs/STACK.md` inventories the stack,
+`docs/ARCHITECTURE.md` explains the layout, `docs/MOBILE.md` the mobile story,
+`CONTRIBUTING.md` the house style.
 
 ## Naming (it's inconsistent on purpose — don't "fix" it)
 
