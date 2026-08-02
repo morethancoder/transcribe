@@ -1,6 +1,6 @@
 [package]
 name = "transcrape"
-version = "0.2.0"
+version = "0.3.0"
 description = "On-device video and audio transcription, powered by whisper.cpp"
 authors = ["morethancoder"]
 license = "MIT"
